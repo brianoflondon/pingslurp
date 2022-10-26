@@ -1,5 +1,10 @@
+import asyncio
+import inspect
 import logging
 import os
+from concurrent.futures import ThreadPoolExecutor
+from functools import wraps
+from timeit import default_timer as timer
 from typing import List, Optional
 
 import backoff
@@ -10,6 +15,7 @@ from lighthive.helpers.account import VOTING_MANA_REGENERATION_IN_SECONDS
 from lighthive.node_picker import compare_nodes
 from pydantic import BaseModel, Field
 
+from podping_hive.hive import get_client, listen_for_custom_json_operations
 
 
 class HiveTrx(BaseModel):
@@ -19,51 +25,14 @@ class HiveTrx(BaseModel):
     expired: bool
 
 
-def get_client(
-    posting_keys: Optional[List[str]] = None,
-    nodes=None,
-    connect_timeout=3,
-    read_timeout=30,
-    loglevel=logging.ERROR,
-    chain=None,
-    automatic_node_selection=False,
-    api_type="condenser_api",
-) -> Client:
-    try:
-        if os.getenv("TESTNET", "False").lower() in (
-            "true",
-            "1",
-            "t",
-        ):
-            nodes = [os.getenv("TESTNET_NODE")]
-            chain = {"chain_id": os.getenv("TESTNET_CHAINID")}
-        else:
-            nodes = [
-                "https://hived.emre.sh",
-                "https://api.hive.blog",
-                "https://api.deathwing.me",
-                # "https://hive-api.arcange.eu",
-                "https://api.openhive.network",
-                " https://rpc.ausbit.dev",
-            ]
-        client = Client(
-            keys=posting_keys,
-            nodes=nodes,
-            connect_timeout=connect_timeout,
-            read_timeout=read_timeout,
-            loglevel=loglevel,
-            chain=chain,
-            automatic_node_selection=automatic_node_selection,
-            backoff_mode=backoff.fibo,
-            backoff_max_tries=3,
-            load_balance_nodes=True,
-            circuit_breaker=True,
-        )
-        return client(api_type)
-    except Exception as ex:
-        logging.error("Error getting Hive Client")
-        logging.exception(ex)
-        raise ex
+async def main_loop():
+    client = get_client()
+    current_block = client.get_dynamic_global_properties()["head_block_number"]
+    async for post in listen_for_custom_json_operations(
+        condenser_api_client=client, start_block=current_block - 200
+    ):
+        if post["op"][1]["id"].startswith("pp_"):
+            logging.info(post)
 
 
 if __name__ == "__main__":
@@ -75,3 +44,4 @@ if __name__ == "__main__":
     )
     client = get_client()
     logging.info(client.current_node)
+    asyncio.run(main_loop())
