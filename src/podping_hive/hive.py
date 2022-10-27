@@ -105,7 +105,7 @@ async def listen_for_custom_json_operations(
                     ):
                         if op[1]["type"] == "custom_json_operation":
                             yield {
-                                "block": current_block,
+                                "block_num": current_block,
                                 "timestamp": block["block"]["timestamp"],
                                 "trx_num": op[0],
                                 "trx_id": block['block']['transaction_ids'][op[0]],

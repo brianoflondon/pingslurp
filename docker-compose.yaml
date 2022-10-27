@@ -28,3 +28,6 @@ services:
 volumes:
   mongodb-pp-data:
     driver: local
+
+networks:
+  podping-hive:
