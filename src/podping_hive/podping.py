@@ -37,6 +37,7 @@ class HiveTrx(BaseModel):
 class PodpingMeta(BaseModel):
     required_posting_auths: List[str]
     json_size: int
+    num_iris: int
     id: str
 
 
@@ -53,6 +54,7 @@ class Podping(HiveTrx, PodpingMeta, BaseModel):
         hive_trx = data
         podping_meta = data["op"][1]
         podping_meta["json_size"] = utf8len(data["op"][1]["json"])
+        podping_meta["num_iris"] = len(custom_json["iris"])
         super().__init__(**custom_json, **hive_trx, **podping_meta)
 
     @validator("medium")
