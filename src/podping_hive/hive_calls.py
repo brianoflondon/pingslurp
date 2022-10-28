@@ -12,7 +12,7 @@ from beemapi.exceptions import NumRetriesReached
 from httpx import URL
 
 from podping_hive.async_wrapper import sync_to_async_iterable
-from podping_hive.database import get_mongo_db, insert_podping
+from podping_hive.database import get_mongo_db, insert_podping, setup_mongo_db
 from podping_hive.podping import Podping
 
 
@@ -199,7 +199,8 @@ async def keep_checking_hive_stream(
         await asyncio.sleep(1)
         return
 
-    database = get_mongo_db("all_podpings")
+    setup_mongo_db()
+    database = get_mongo_db()
     try:
         await database.create_index("trx_id", name="trx_id", unique=True)
     except Exception:

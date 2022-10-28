@@ -1,19 +1,23 @@
 import os
+from datetime import datetime
 from typing import Iterator
 
 import pymssql
+from pydantic import BaseModel
+
 
 class HiveSQLPodping(BaseModel):
-    trx_id: str 
+    trx_id: str
     block_num: int
     timestamp: datetime
     trx_num: int
+
 
 row = {
     "ID": 1708015122,
     "tid": "pp_video_update",
     "json": '{"version":"1.0","medium":"video","reason":"update","iris":["https://3speak.tv/rss/hawks21.xml"]}',
-    "timestamp": datetime.datetime(2022, 10, 25, 16, 6, 18),
+    "timestamp": datetime(2022, 10, 25, 16, 6, 18),
     "required_posting_auth": "podping.spk",
     "required_auth": None,
     "required_posting_auths": '["podping.spk"]',
