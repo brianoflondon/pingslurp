@@ -13,40 +13,6 @@ def get_mongo_db(collection: str = "all_podpings") -> AsyncIOMotorCollection:
     """Returns the MongoDB"""
     return AsyncIOMotorClient(DB_CONNECTION)["podping"][collection]
 
-def setup_mongo_db() -> int:
-    """Check if the DB exists and set it up if needed. Returns number of new DBs"""
-    count = 0
-    for db_name in [Config.DB_NAME, Config.DB_NAME_DELEG]:
-        if check_setup_db(db_name):
-            count += 1
-    return count
-
-
-def check_setup_db(db_name: str) -> bool:
-    db = MongoClient(Config.DB_CONNECTION)["podping"]
-    collection_names = db.list_collection_names()
-    if db_name in collection_names:
-        logging.info(f"DB: {db_name} found in DB: {collection_names}")
-        return False
-
-    if "deleg" in db_name.lower():
-        meta_field = "deleg"
-    else:
-        meta_field = "account"
-
-    # Create timeseries collection:
-    db.create_collection(
-        db_name,
-        timeseries={
-            "timeField": "timestamp",
-            "metaField": meta_field,
-            "granularity": "seconds",
-        },
-    )
-    logging.info(f"DB: {db_name} created in database")
-    return True
-
-
 
 async def insert_podping(db: AsyncIOMotorCollection, pp: Podping) -> bool:
     """Put a podping in the database, returns True if new podping was inserted
@@ -59,13 +25,13 @@ async def insert_podping(db: AsyncIOMotorCollection, pp: Podping) -> bool:
         return False
 
 
-async def block_at_postion(position = 1, db: AsyncIOMotorCollection = None) -> int:
+async def block_at_postion(position=1, db: AsyncIOMotorCollection = None) -> int:
     if not db:
         db = get_mongo_db()
     sort_order = 1
     if position < 0:
         sort_order = -1
-        position = abs(position) -1
+        position = abs(position) - 1
     cursor = db.find({}, {"block_num": 1}).sort([("block_num", sort_order)])
     i = 0
     async for doc in cursor:

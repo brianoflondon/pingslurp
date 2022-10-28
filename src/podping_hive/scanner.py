@@ -26,10 +26,12 @@ from podping_hive.podping import Podping
 
 
 async def main_loop():
-    # start_block = await block_at_postion(-1)
-    time_delta = timedelta(hours=1)
-    await keep_checking_hive_stream(time_delta=time_delta)
-    # await keep_checking_hive_stream(start_block=start_block)
+    # time_delta = timedelta(hours=5)
+    # await keep_checking_hive_stream(time_delta=time_delta)
+
+    
+    start_block = await block_at_postion(-1)
+    await keep_checking_hive_stream(start_block=start_block)
 
 
 if __name__ == "__main__":
