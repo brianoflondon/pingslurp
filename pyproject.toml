@@ -14,11 +14,22 @@ black = "^22.10.0"
 asgiref = "^3.5.2"
 single-source = "^0.3.0"
 motor = "^3.1.1"
+beem = {git = "https://gitlab.syncad.com/hive/beem.git"}
+httpx = "^0.23.0"
+pymssql = "^2.2.5"
 
 
 [tool.poetry.group.dev.dependencies]
 black = "^22.10.0"
+pytest = "^7.2.0"
+pytest-asyncio = "^0.20.1"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+log_cli = true
+log_cli_level = "INFO"
+log_cli_format = "%(asctime)s [%(levelname)8s] %(message)s (%(filename)s:%(lineno)s)"
+log_cli_date_format = "%Y-%m-%d %H:%M:%S"

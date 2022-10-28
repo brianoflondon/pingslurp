@@ -50,11 +50,20 @@ class Podping(HiveTrx, PodpingMeta, BaseModel):
     iris: List[str]
 
     def __init__(__pydantic_self__, **data: Any) -> None:
-        custom_json = json.loads(data["op"][1]["json"])
-        hive_trx = data
-        podping_meta = data["op"][1]
-        podping_meta["json_size"] = utf8len(data["op"][1]["json"])
-        podping_meta["num_iris"] = len(custom_json["iris"])
+        # Lighthive post format parser:
+        # try:
+        #     custom_json = json.loads(data["op"][1]["json"])
+        #     hive_trx = data
+        #     podping_meta = data["op"][1]
+        #     podping_meta["json_size"] = utf8len(data["op"][1]["json"])
+        #     podping_meta["num_iris"] = len(custom_json["iris"])
+        # except KeyError:
+        #     pass
+        custom_json = json.loads(data.get("json"))
+        podping_meta = data
+        hive_trx = {}
+        podping_meta["json_size"] = utf8len(data.get("json"))
+        podping_meta["num_iris"] = len(custom_json.get("iris"))
         super().__init__(**custom_json, **hive_trx, **podping_meta)
 
     @validator("medium")
