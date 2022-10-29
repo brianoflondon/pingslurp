@@ -20,8 +20,8 @@ from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
 from pydantic import BaseModel, Field, validator
 from pymongo.errors import DuplicateKeyError, ServerSelectionTimeoutError
 
-from podping_hive.database import block_at_postion
-from podping_hive.hive_calls import keep_checking_hive_stream
+from podping_hive.database import block_at_postion, setup_mongo_db
+from podping_hive.hive_calls import HiveConnectionError, keep_checking_hive_stream
 from podping_hive.podping import Podping
 
 
@@ -31,8 +31,13 @@ async def main_loop():
 
 
     start_block = await block_at_postion(-1) - 50
-    start_block = 69185699
-    await keep_checking_hive_stream(start_block=start_block)
+    # start_block = 69185699
+    setup_mongo_db()
+    while True:
+        try:
+            await keep_checking_hive_stream(start_block=start_block)
+        except HiveConnectionError:
+            pass
 
 
 if __name__ == "__main__":

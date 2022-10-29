@@ -9,7 +9,7 @@
             "type": "python",
             "request": "launch",
             "envFile": "${workspaceFolder}/.env",
-            "program": "${workspaceFolder}/src/podping_hive/scanner.py",
+            "program": "${workspaceFolder}/src/scanner.py",
             "console": "integratedTerminal",
             "justMyCode": true,
         }

@@ -1,5 +1,5 @@
-from datetime import datetime
 import json
+from datetime import datetime
 from typing import Any, List, Literal
 
 from pydantic import BaseModel, validator
@@ -45,9 +45,18 @@ class PodpingMeta(BaseModel):
     hive: str = None
 
     def __init__(__pydantic_self__, **data: Any) -> None:
-        if data.get('id').startswith('pplt_'):
+        if data.get("id").startswith("pplt_"):
             data["live_test"] = True
         super().__init__(**data)
+
+    @property
+    def metadata(self):
+        return {
+            "metadata": {"posting_auth": self.required_posting_auths[0], "id": self.id},
+            "json_size": self.json_size,
+            "num_iris": self.num_iris,
+        }
+
 
 class Podping(HiveTrx, PodpingMeta, BaseModel):
     """Dataclass for on-chain podping schema"""
@@ -96,3 +105,13 @@ class Podping(HiveTrx, PodpingMeta, BaseModel):
             raise ValueError("iris must contain at least one element")
 
         return v
+
+    def db_format(self) -> dict:
+        return self.dict()
+
+    def db_format_meta(self) -> dict:
+        db_meta = self.metadata
+        db_meta["timestamp"] = self.timestamp
+        db_meta["trx_id"] = self.trx_id
+        db_meta["block_num"] = self.block_num
+        return db_meta

@@ -1,12 +1,22 @@
+import asyncio
+import logging
+import os
 from itertools import groupby
 from typing import AsyncIterator, Generator, Set
 
+from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
+from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError, ServerSelectionTimeoutError
 
 from podping_hive.podping import Podping
 
-DB_CONNECTION = "mongodb://localhost:27017"
+load_dotenv()
+
+DB_CONNECTION = os.getenv("DB_CONNECTION")
+
+DB_NAME = "all_podpings"
+DB_NAME_META = "meta_ts"
 
 
 def get_mongo_db(collection: str = "all_podpings") -> AsyncIOMotorCollection:
@@ -14,15 +24,53 @@ def get_mongo_db(collection: str = "all_podpings") -> AsyncIOMotorCollection:
     return AsyncIOMotorClient(DB_CONNECTION)["podping"][collection]
 
 
-async def insert_podping(db: AsyncIOMotorCollection, pp: Podping) -> bool:
+def get_mongo_client() -> AsyncIOMotorClient:
+    return AsyncIOMotorClient(DB_CONNECTION)["podping"]
+
+
+def setup_mongo_db() -> None:
+    """Check if the DB exists and set it up if needed. Returns number of new DBs"""
+    count = 0
+    client = MongoClient(DB_CONNECTION)["podping"]
+    collection_names = client.list_collection_names()
+    if not DB_NAME in collection_names:
+        client.create_collection(DB_NAME)
+        logging.info(f"DB: {DB_NAME} created in database")
+    client[DB_NAME].create_index("trx_id", name="trx_id", unique=True)
+    # db["DB_NAME"].create_index({"id":"text","iris":"text"}, name="id_text_iris_text", )
+    logging.info(f"DB: {DB_NAME} created in database")
+
+    if not DB_NAME_META in collection_names:
+        # Create timeseries collection:
+        client.create_collection(
+            DB_NAME_META,
+            timeseries={
+                "timeField": "timestamp",
+                "metaField": "metadata",
+                "granularity": "seconds",
+            },
+        )
+        logging.info(f"DB: {DB_NAME_META} created in database")
+    return
+
+
+async def insert_podping(db_client: AsyncIOMotorClient, pp: Podping) -> bool:
     """Put a podping in the database, returns True if new podping was inserted
     False if duplicate."""
-    data = pp.dict()
+    data = pp.db_format()
+    data_meta = pp.db_format_meta()
     try:
-        await db.insert_one(data)
+        await db_client[DB_NAME].insert_one(data)
         return True
     except DuplicateKeyError:
         return False
+
+    # Time series can't have unique keys
+    # try:
+    #     data_meta_ans = await db_client[DB_NAME_META].insert_one(data_meta)
+    # except DuplicateKeyError:
+    #     data_meta_ans
+    # return (data_ans, data_meta_ans)
 
 
 async def block_at_postion(position=1, db: AsyncIOMotorCollection = None) -> int:

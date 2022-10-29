@@ -12,7 +12,7 @@ from beemapi.exceptions import NumRetriesReached
 from httpx import URL
 
 from podping_hive.async_wrapper import sync_to_async_iterable
-from podping_hive.database import get_mongo_db, insert_podping
+from podping_hive.database import get_mongo_client, get_mongo_db, insert_podping
 from podping_hive.podping import Podping
 
 
@@ -199,11 +199,8 @@ async def keep_checking_hive_stream(
         await asyncio.sleep(1)
         return
 
-    database = get_mongo_db("all_podpings")
-    try:
-        await database.create_index("trx_id", name="trx_id", unique=True)
-    except Exception:
-        logging.error("Can't work with this database")
+
+    client = get_mongo_client()
 
     prev_block_num = get_start_block(blockchain, start_block, time_delta)
     stream = sync_to_async_iterable(
@@ -227,7 +224,7 @@ async def keep_checking_hive_stream(
                 post.get("id").startswith("pp_") or post.get("id").startswith("pplt_")
             ):
                 podping = Podping.parse_obj(post)
-                if await insert_podping(database, podping):
+                if await insert_podping(client, podping):
                     logging.info(
                         f"New       podping: {podping.trx_id} | {podping.required_posting_auths}"
                     )
@@ -253,4 +250,5 @@ async def keep_checking_hive_stream(
         logging.error(ex)
         logging.warning(f"Last good block: {prev_block_num:,}")
         await asyncio.sleep(10)
+        raise HiveConnectionError
         asyncio.create_task(keep_checking_hive_stream(start_block=prev_block_num - 50))
