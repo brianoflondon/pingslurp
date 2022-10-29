@@ -26,11 +26,12 @@ from podping_hive.podping import Podping
 
 
 async def main_loop():
-    # time_delta = timedelta(hours=5)
+    # time_delta = timedelta(hours=3)
     # await keep_checking_hive_stream(time_delta=time_delta)
 
-    
-    start_block = await block_at_postion(-1)
+
+    start_block = await block_at_postion(-1) - 50
+    start_block = 69185699
     await keep_checking_hive_stream(start_block=start_block)
 
 

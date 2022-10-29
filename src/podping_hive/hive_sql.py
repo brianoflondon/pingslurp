@@ -1,10 +1,11 @@
 import os
 from typing import Iterator
-
+from pydantic import BaseModel
+from datetime import datetime
 import pymssql
 
 class HiveSQLPodping(BaseModel):
-    trx_id: str 
+    trx_id: str
     block_num: int
     timestamp: datetime
     trx_num: int

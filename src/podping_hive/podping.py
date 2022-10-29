@@ -37,17 +37,25 @@ class HiveTrx(BaseModel):
 class PodpingMeta(BaseModel):
     required_posting_auths: List[str]
     json_size: int
-    num_iris: int
+    num_iris: int = 0
     id: str
+    live_test: bool = False
+    message: str = None
+    uuid: str = None
+    hive: str = None
 
+    def __init__(__pydantic_self__, **data: Any) -> None:
+        if data.get('id').startswith('pplt_'):
+            data["live_test"] = True
+        super().__init__(**data)
 
 class Podping(HiveTrx, PodpingMeta, BaseModel):
     """Dataclass for on-chain podping schema"""
 
     version: Literal["1.0"] = "1.0"
-    medium: str
-    reason: str
-    iris: List[str]
+    medium: str = ""
+    reason: str = ""
+    iris: List[str] = []
 
     def __init__(__pydantic_self__, **data: Any) -> None:
         # Lighthive post format parser:
@@ -63,7 +71,8 @@ class Podping(HiveTrx, PodpingMeta, BaseModel):
         podping_meta = data
         hive_trx = {}
         podping_meta["json_size"] = utf8len(data.get("json"))
-        podping_meta["num_iris"] = len(custom_json.get("iris"))
+        if iris := custom_json.get("iris"):
+            podping_meta["num_iris"] = len(iris)
         super().__init__(**custom_json, **hive_trx, **podping_meta)
 
     @validator("medium")

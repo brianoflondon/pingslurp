@@ -223,7 +223,9 @@ async def keep_checking_hive_stream(
             prev_block_num, counter, block_num_change = output_status(
                 post, prev_block_num, counter
             )
-            if post["type"] in OP_NAMES and post.get("id").startswith("pp_"):
+            if post["type"] in OP_NAMES and (
+                post.get("id").startswith("pp_") or post.get("id").startswith("pplt_")
+            ):
                 podping = Podping.parse_obj(post)
                 if await insert_podping(database, podping):
                     logging.info(
@@ -243,7 +245,7 @@ async def keep_checking_hive_stream(
     except (httpx.ReadTimeout, Exception) as ex:
         asyncio.create_task(
             send_notification_via_api(
-                notify="hive_scanner: Error watching Hive", alert_level=5
+                notify="podping-hive: Error watching Hive", alert_level=5
             ),
             name="keep_checking_hive_error_notification",
         )
