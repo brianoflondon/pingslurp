@@ -7,6 +7,7 @@ from typing import List, Optional, Set, Tuple
 
 import httpx
 from beem import Hive
+from beem.block import BlockHeader
 from beem.blockchain import Blockchain
 from beemapi.exceptions import NumRetriesReached
 from httpx import URL
@@ -131,6 +132,14 @@ async def get_hive_blockchain() -> Tuple[Hive, Blockchain]:
             raise
 
 
+def get_block_datetime(block_num: int) -> datetime:
+    """Returns the datetime of a specific block in the blockchain"""
+    if block_num == 0:
+        block_num = 1
+    block_header = BlockHeader(block=block_num)
+    return block_header.time()
+
+
 def get_start_block(
     blockchain: Blockchain,
     start_block: Optional[int] = None,
@@ -198,7 +207,6 @@ async def keep_checking_hive_stream(
         logging.error("Can't connect to any Hive API Servers")
         await asyncio.sleep(1)
         return
-
 
     client = get_mongo_client()
 

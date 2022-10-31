@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 from itertools import groupby
-from typing import AsyncIterator, Generator, Set
+from typing import AsyncIterator, Generator, List, Set
 
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
@@ -89,15 +89,15 @@ async def block_at_postion(position=1, db: AsyncIOMotorCollection = None) -> int
     return 0
 
 
-async def all_blocks(db: AsyncIOMotorCollection = None) -> Set:
+async def all_blocks(db: AsyncIOMotorCollection = None) -> List:
     """Return a set of all block_num currently in the database from lowest to
     highest"""
     if not db:
         db = get_mongo_db()
     cursor = db.find({}, {"block_num": 1}).sort([("block_num", 1)])
-    ans = set()
+    ans = list()
     async for doc in cursor:
-        ans.add(doc["block_num"])
+        ans.append(doc["block_num"])
     return ans
 
 
@@ -110,6 +110,22 @@ async def all_blocks_it(db: AsyncIOMotorCollection = None) -> AsyncIterator[int]
     async for doc in cursor:
         yield doc["block_num"]
 
+
+async def find_big_gaps(gap_size: int):
+    """Find big gaps in block list greater than gap_size."""
+    big_gaps = []
+    gap  = (0,0)
+    last_block = 0
+    async for range_block in range_extract(all_blocks_it()):
+
+        if range_block[0] - last_block > gap_size:
+            logging.info(f"Big gap at: {range_block}")
+            gap = (last_block, range_block[0] - 1)
+
+            big_gaps.append(gap)
+
+        last_block = max(range_block)
+    return big_gaps
 
 async def range_extract(iterable: AsyncIterator) -> AsyncIterator:
     """Assumes iterable is sorted sequentially. Returns iterator of range tuples."""
