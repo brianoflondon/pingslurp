@@ -48,7 +48,7 @@ async def main_loop():
         tasks = [
             # keep_checking_hive_stream(start_block=start_block, message="Live"),
             keep_checking_hive_stream(
-                start_block=68620000, message="OLD", end_block=68630000
+                start_block=68_629_400, message="OLD", end_block=68630000
             ),
             # keep_checking_hive_stream(
             #     start_block=second_start_block, message="Meta", end_block=start_block

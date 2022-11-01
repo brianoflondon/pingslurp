@@ -1,8 +1,8 @@
 import asyncio
 import logging
+import sys
 from datetime import datetime, timedelta
 from random import shuffle
-import sys
 from timeit import default_timer as timer
 from typing import List, Optional, Set, Tuple
 
@@ -12,9 +12,10 @@ from beem.block import BlockHeader
 from beem.blockchain import Blockchain
 from beemapi.exceptions import NumRetriesReached
 from httpx import URL
+from motor.motor_asyncio import AsyncIOMotorClient
 
 from podping_hive.async_wrapper import sync_to_async_iterable
-from podping_hive.database import get_mongo_client, get_mongo_db, insert_podping
+from podping_hive.database import get_mongo_client, insert_podping
 from podping_hive.podping import Podping
 
 
@@ -36,9 +37,7 @@ MAIN_NODES: List[str] = [
     # "https://anyx.io",
 ]
 
-MAIN_NODES: List[str] = [
-    "http://cepo-v4vapp:8091/"
-]
+MAIN_NODES: List[str] = ["http://cepo-v4vapp:8091/"]
 
 OP_NAMES = ["custom_json"]
 HIVE_STATUS_OUTPUT_BLOCKS = 50
@@ -206,7 +205,7 @@ async def keep_checking_hive_stream(
     start_block: Optional[int] = None,
     time_delta: Optional[timedelta] = None,
     end_block: Optional[int] = sys.maxsize,
-    message: Optional[str] = ""
+    message: Optional[str] = "",
 ):
     try:
         hive, blockchain = await get_hive_blockchain()
@@ -234,8 +233,11 @@ async def keep_checking_hive_stream(
 
     logging.info(f"{message}Starting to scan the chain at Block num: {block_num:,}")
     try:
-        # if True:
+        tasks = []
         async for post in stream:
+            if len(tasks) > 20:
+                await asyncio.gather(*tasks)
+                tasks = []
             prev_block_num, counter, block_num_change = output_status(
                 post, prev_block_num, counter, message=message
             )
@@ -243,25 +245,23 @@ async def keep_checking_hive_stream(
                 post.get("id").startswith("pp_") or post.get("id").startswith("pplt_")
             ):
                 podping = Podping.parse_obj(post)
-                if await insert_podping(client, podping):
-                    logging.info(
-                        f"{message}New       podping: {podping.trx_id} | {podping.required_posting_auths}"
-                    )
-                else:
-                    logging.info(
-                        f"{message}Duplicate podping: {podping.trx_id} | {podping.required_posting_auths}"
-                    )
-            if post['block_num'] > end_block:
-                logging.info(f"{message}Search Complete from {start_block} to {end_block}")
+                tasks.append(insert_and_report_podping(client,podping,message))
+            if post["block_num"] > end_block:
+                logging.info(
+                    f"{message}Search Complete from {start_block} to {end_block}"
+                )
                 return
 
     except asyncio.CancelledError as ex:
+        await asyncio.gather(*tasks)
         logging.warning("asyncio.CancelledError raised in keep_checking_hive_stream")
         logging.warning(f"{ex} {ex.__class__}")
         raise
     except KeyboardInterrupt:
+        await asyncio.gather(*tasks)
         raise
     except (httpx.ReadTimeout, Exception) as ex:
+        await asyncio.gather(*tasks)
         asyncio.create_task(
             send_notification_via_api(
                 notify="podping-hive: Error watching Hive", alert_level=5
@@ -273,3 +273,14 @@ async def keep_checking_hive_stream(
         logging.warning(f"Last good block: {prev_block_num:,}")
         await asyncio.sleep(10)
         raise HiveConnectionError
+
+
+async def insert_and_report_podping(client: AsyncIOMotorClient, podping: Podping, message: str):
+    if await insert_podping(client, podping):
+        logging.info(
+            f"{message}New       podping: {podping.trx_id} | {podping.required_posting_auths} | {podping.block_num}"
+        )
+    else:
+        logging.info(
+            f"{message}Duplicate podping: {podping.trx_id} | {podping.required_posting_auths} | {podping.block_num}"
+        )
