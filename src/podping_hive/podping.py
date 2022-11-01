@@ -40,9 +40,11 @@ class PodpingMeta(BaseModel):
     num_iris: int = 0
     id: str
     live_test: bool = False
+    server_account: str = None
     message: str = None
     uuid: str = None
     hive: str = None
+    v: str = None
 
     def __init__(__pydantic_self__, **data: Any) -> None:
         if data.get("id").startswith("pplt_"):

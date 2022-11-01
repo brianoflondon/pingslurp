@@ -29,6 +29,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    logging:
+      driver: "json-file"
+      options:
+          max-file: "5"
+          max-size: "10m"
     env_file:
       - ".env"
     environment:

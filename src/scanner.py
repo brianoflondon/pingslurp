@@ -21,21 +21,23 @@ from pydantic import BaseModel, Field, validator
 from pymongo.errors import DuplicateKeyError, ServerSelectionTimeoutError
 
 from podping_hive.database import block_at_postion, setup_mongo_db
-from podping_hive.hive_calls import HiveConnectionError, keep_checking_hive_stream
+from podping_hive.hive_calls import (HiveConnectionError,
+                                     keep_checking_hive_stream)
 from podping_hive.podping import Podping
 
 
 async def main_loop():
-    # time_delta = timedelta(hours=3)
+    # time_delta = timedelta(days=30)
     # await keep_checking_hive_stream(time_delta=time_delta)
 
-
-    start_block = await block_at_postion(-1) - 50
+    # start_block = await block_at_postion(-1) - 50
     # start_block = 69185699
+    start_block = 68_542_080
     setup_mongo_db()
     while True:
         try:
             await keep_checking_hive_stream(start_block=start_block)
+            # await keep_checking_hive_stream(time_delta=time_delta)
         except HiveConnectionError:
             pass
 
