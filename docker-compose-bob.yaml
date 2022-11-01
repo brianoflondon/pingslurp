@@ -38,9 +38,9 @@ services:
     networks:
       - podping-hive
 
-volumes:
-  mongodb-pp-data:
-    driver: local
+# volumes:
+#   mongodb-pp-data:
+#     driver: local
 
 networks:
   podping-hive:
