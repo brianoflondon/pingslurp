@@ -43,6 +43,7 @@ class PodpingMeta(BaseModel):
     message: str = None
     uuid: str = None
     hive: str = None
+    stored_meta: bool = False
 
     def __init__(__pydantic_self__, **data: Any) -> None:
         if data.get("id").startswith("pplt_"):
@@ -107,7 +108,7 @@ class Podping(HiveTrx, PodpingMeta, BaseModel):
         return v
 
     def db_format(self) -> dict:
-        return self.dict()
+        return self.dict(exclude_unset=True)
 
     def db_format_meta(self) -> dict:
         db_meta = self.metadata

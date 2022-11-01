@@ -1,8 +1,9 @@
 import asyncio
 import logging
 import os
+from datetime import timedelta
 from itertools import groupby
-from typing import AsyncIterator, Generator, List, Set
+from typing import AsyncIterator, Generator, List, Set, Tuple
 
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
@@ -60,17 +61,32 @@ async def insert_podping(db_client: AsyncIOMotorClient, pp: Podping) -> bool:
     data = pp.db_format()
     data_meta = pp.db_format_meta()
     try:
-        await db_client[DB_NAME].insert_one(data)
-        return True
-    except DuplicateKeyError:
+        ans = await db_client[DB_NAME].insert_one(data)
+        # if we have a new podping, store its metadata
+        try:
+            ans2 = await db_client[DB_NAME_META].insert_one(data_meta)
+            new_value = {"$set": {"stored_meta": True}}
+            ans3 = await db_client[DB_NAME].update_one(
+                {'trx_id': pp.trx_id}, new_value
+            )
+        except Exception as ex:
+            logging.error(ex)
+    except DuplicateKeyError as ex:
+        doc = await db_client[DB_NAME].find_one({'trx_id': pp.trx_id})
+        if not doc.get("stored_meta"):
+            ans2 = await db_client[DB_NAME_META].insert_one(data_meta)
+            new_value = {"$set": {"stored_meta": True}}
+            ans3 = await db_client[DB_NAME].update_one(
+                {'trx_id': pp.trx_id}, new_value
+            )
+            logging.info(f"Metadata updated for        {pp.trx_id}")
+        else:
+            logging.info(f"Metadata already exists for {pp.trx_id}")
         return False
+    return True
 
-    # Time series can't have unique keys
-    # try:
-    #     data_meta_ans = await db_client[DB_NAME_META].insert_one(data_meta)
-    # except DuplicateKeyError:
-    #     data_meta_ans
-    # return (data_ans, data_meta_ans)
+# async def store_meta()
+
 
 
 async def block_at_postion(position=1, db: AsyncIOMotorCollection = None) -> int:
@@ -111,14 +127,22 @@ async def all_blocks_it(db: AsyncIOMotorCollection = None) -> AsyncIterator[int]
         yield doc["block_num"]
 
 
-async def find_big_gaps(gap_size: int):
-    """Find big gaps in block list greater than gap_size."""
+async def find_big_gaps(
+    block_gap_size: int = None, time_span: timedelta = None
+) -> List[Tuple[int, int]]:
+    """Find big gaps in block list greater than block_gap_size blocks or
+    time_span seconds."""
+    if not block_gap_size and not time_span:
+        time_span = timedelta(hours=1)
+
+    if not block_gap_size:
+        block_gap_size = int(time_span.seconds / 3)
     big_gaps = []
-    gap  = (0,0)
+    gap = (0, 0)
     last_block = 0
     async for range_block in range_extract(all_blocks_it()):
 
-        if range_block[0] - last_block > gap_size:
+        if range_block[0] - last_block > block_gap_size:
             logging.info(f"Big gap at: {range_block}")
             gap = (last_block, range_block[0] - 1)
 
@@ -126,6 +150,7 @@ async def find_big_gaps(gap_size: int):
 
         last_block = max(range_block)
     return big_gaps
+
 
 async def range_extract(iterable: AsyncIterator) -> AsyncIterator:
     """Assumes iterable is sorted sequentially. Returns iterator of range tuples."""

@@ -1,4 +1,5 @@
 import logging
+from datetime import timedelta
 
 import pytest
 
@@ -45,14 +46,12 @@ async def test_range_extract():
 
 @pytest.mark.asyncio
 async def test_find_big_gaps():
-    ans = await find_big_gaps(500)
+    ans = await find_big_gaps(time_span=timedelta(hours=1))
     date_gaps = []
     for start, end in ans:
         start = get_block_datetime(start)
         end = get_block_datetime(end)
-        date_gaps.append(
-            (start, end)
-        )
+        date_gaps.append((start, end))
         logging.info(f"Date gap: {start:%d-%m-%Y} ->  {end:%d-%m-%Y} | {end - start}")
     logging.info(ans)
     logging.info(date_gaps)

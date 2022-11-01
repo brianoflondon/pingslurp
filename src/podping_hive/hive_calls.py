@@ -2,6 +2,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 from random import shuffle
+import sys
 from timeit import default_timer as timer
 from typing import List, Optional, Set, Tuple
 
@@ -27,7 +28,7 @@ MAIN_NODES: List[str] = [
     "https://hived.emre.sh",
     # "https://rpc.ausbit.dev",  # TypeError: string indices must be integers
     # "https://hived.privex.io",
-    "https://hive-api.arcange.eu",
+    # "https://hive-api.arcange.eu",
     # "https://rpc.ecency.com",
     "https://api.hive.blog",  # TypeError
     "https://api.openhive.network",
@@ -169,7 +170,7 @@ def get_start_block(
 
 
 def output_status(
-    hive_post: dict, prev_block_num: int, counter: int
+    hive_post: dict, prev_block_num: int, counter: int, message: str = ""
 ) -> Tuple[int, int, bool]:
     """Output a status line for the Hive scanner"""
     block_num = hive_post["block_num"]
@@ -182,7 +183,7 @@ def output_status(
             time_delta = seconds_only(
                 datetime.utcnow() - hive_post["timestamp"].replace(tzinfo=None)
             )
-            logging.info(f"Block: {block_num:,} | " f"Timedelta: {time_delta}")
+            logging.info(f"{message}Block: {block_num:,} | " f"Timedelta: {time_delta}")
             if time_delta < timedelta(seconds=0):
                 logging.warning(
                     f"Clock might be wrong showing a time drift {time_delta}"
@@ -200,6 +201,8 @@ def output_status(
 async def keep_checking_hive_stream(
     start_block: Optional[int] = None,
     time_delta: Optional[timedelta] = None,
+    end_block: Optional[int] = sys.maxsize,
+    message: Optional[str] = ""
 ):
     try:
         hive, blockchain = await get_hive_blockchain()
@@ -207,6 +210,9 @@ async def keep_checking_hive_stream(
         logging.error("Can't connect to any Hive API Servers")
         await asyncio.sleep(1)
         return
+
+    if message:
+        message += " | "
 
     client = get_mongo_client()
 
@@ -221,12 +227,13 @@ async def keep_checking_hive_stream(
     )
     block_num = prev_block_num
     counter = 0
-    logging.info(f"Starting to scan the chain at Block num: {block_num:,}")
+
+    logging.info(f"{message}Starting to scan the chain at Block num: {block_num:,}")
     try:
         # if True:
         async for post in stream:
             prev_block_num, counter, block_num_change = output_status(
-                post, prev_block_num, counter
+                post, prev_block_num, counter, message=message
             )
             if post["type"] in OP_NAMES and (
                 post.get("id").startswith("pp_") or post.get("id").startswith("pplt_")
@@ -234,12 +241,15 @@ async def keep_checking_hive_stream(
                 podping = Podping.parse_obj(post)
                 if await insert_podping(client, podping):
                     logging.info(
-                        f"New       podping: {podping.trx_id} | {podping.required_posting_auths}"
+                        f"{message}New       podping: {podping.trx_id} | {podping.required_posting_auths}"
                     )
                 else:
                     logging.info(
-                        f"Duplicate podping: {podping.trx_id} | {podping.required_posting_auths}"
+                        f"{message}Duplicate podping: {podping.trx_id} | {podping.required_posting_auths}"
                     )
+            if post['block_num'] > end_block:
+                logging.info(f"{message}Search Complete from {start_block} to {end_block}")
+                return
 
     except asyncio.CancelledError as ex:
         logging.warning("asyncio.CancelledError raised in keep_checking_hive_stream")
@@ -259,4 +269,3 @@ async def keep_checking_hive_stream(
         logging.warning(f"Last good block: {prev_block_num:,}")
         await asyncio.sleep(10)
         raise HiveConnectionError
-        asyncio.create_task(keep_checking_hive_stream(start_block=prev_block_num - 50))
