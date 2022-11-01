@@ -36,6 +36,10 @@ MAIN_NODES: List[str] = [
     # "https://anyx.io",
 ]
 
+MAIN_NODES: List[str] = [
+    "http://cepo-v4vapp:8091/"
+]
+
 OP_NAMES = ["custom_json"]
 HIVE_STATUS_OUTPUT_BLOCKS = 50
 

@@ -34,20 +34,22 @@ async def main_loop():
     start_block = await block_at_postion(-1) - 50
     second_start_block = 69_253_371
 
-    big_gaps = await find_big_gaps(time_span=timedelta(hours=2))
+    # big_gaps = await find_big_gaps(time_span=timedelta(hours=2))
 
-    if len(big_gaps) > 2:
-        for i, gap in enumerate(big_gaps[2:]):
-            tasks.append(
-                keep_checking_hive_stream(
-                    start_block=gap[0], end_block=gap[1], message=f"Gap {i}"
-                )
-            )
+    # if len(big_gaps) > 2:
+    #     for i, gap in enumerate(big_gaps[2:]):
+    #         tasks.append(
+    #             keep_checking_hive_stream(
+    #                 start_block=gap[0], end_block=gap[1], message=f"Gap {i}"
+    #             )
+    #         )
 
     while True:
         tasks = [
-            keep_checking_hive_stream(start_block=start_block, message="Live"),
-            # keep_checking_hive_stream(time_delta=timedelta(weeks=1), message="Meta"),
+            # keep_checking_hive_stream(start_block=start_block, message="Live"),
+            keep_checking_hive_stream(
+                start_block=68620000, message="OLD", end_block=68630000
+            ),
             # keep_checking_hive_stream(
             #     start_block=second_start_block, message="Meta", end_block=start_block
             # ),
