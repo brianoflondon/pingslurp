@@ -24,7 +24,7 @@ services:
     networks:
       - pingslurp
 
-  hive-podping:
+  pingslurp:
     container_name: pingslurp
     build:
       context: .
