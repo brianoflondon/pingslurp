@@ -225,7 +225,7 @@ async def keep_checking_hive_stream(
             opNames=OP_NAMES,
             raw_ops=False,
             start=prev_block_num,
-            max_batch_size=50,
+            max_batch_size=database_cache,
         )
     )
     block_num = prev_block_num
@@ -265,7 +265,7 @@ async def keep_checking_hive_stream(
         await asyncio.gather(*tasks)
         asyncio.create_task(
             send_notification_via_api(
-                notify="podping-hive: Error watching Hive", alert_level=5
+                notify="pingslurp: Error watching Hive", alert_level=5
             ),
             name="keep_checking_hive_error_notification",
         )
