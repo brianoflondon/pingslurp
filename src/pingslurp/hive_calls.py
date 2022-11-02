@@ -225,7 +225,7 @@ async def keep_checking_hive_stream(
             opNames=OP_NAMES,
             raw_ops=False,
             start=prev_block_num,
-            max_batch_size=database_cache,
+            max_batch_size=10,
         )
     )
     block_num = prev_block_num

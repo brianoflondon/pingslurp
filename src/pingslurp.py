@@ -148,6 +148,7 @@ def catchup():
     setup_mongo_db()
     try:
         asyncio.run(catchup_loop())
+        live()
     except asyncio.CancelledError as ex:
         logging.warning("asyncio.CancelledError raised")
         logging.warning(ex)
