@@ -1,6 +1,6 @@
 import pytest
 
-from podping_hive.hive_sql import hive_sql_podping
+from pingslurp.hive_sql import hive_sql_podping
 
 
 def test_hive_sqlpodping():

@@ -21,9 +21,9 @@ from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
 from pydantic import BaseModel, Field, validator
 from pymongo.errors import DuplicateKeyError, ServerSelectionTimeoutError
 
-from podping_hive.database import block_at_postion, find_big_gaps, setup_mongo_db
-from podping_hive.hive_calls import HiveConnectionError, keep_checking_hive_stream
-from podping_hive.podping import Podping
+from pingslurp.database import block_at_postion, find_big_gaps, setup_mongo_db
+from pingslurp.hive_calls import HiveConnectionError, keep_checking_hive_stream
+from pingslurp.podping import Podping
 
 
 async def main_loop():

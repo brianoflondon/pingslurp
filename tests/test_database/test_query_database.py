@@ -3,14 +3,17 @@ from datetime import timedelta
 
 import pytest
 
-from podping_hive.database import (
+from pingslurp.database import (
+    DB_NAME,
+    DB_NAME_META,
     all_blocks,
     all_blocks_it,
     block_at_postion,
     find_big_gaps,
+    get_mongo_db,
     range_extract,
 )
-from podping_hive.hive_calls import get_block_datetime, get_hive_blockchain
+from pingslurp.hive_calls import get_block_datetime, get_hive_blockchain
 
 
 @pytest.mark.asyncio
@@ -33,6 +36,16 @@ async def test_first_last_blocks():
 
 
 @pytest.mark.asyncio
+async def test_meta_first_last_blocks():
+    db = get_mongo_db(DB_NAME_META)
+    fb = await block_at_postion(0, db=db)
+    assert fb
+    lb = await block_at_postion(position=-1, db=db)
+    mid = await block_at_postion(position=5, db=db)
+    assert fb < mid < lb
+
+
+@pytest.mark.asyncio
 async def test_range_extract():
     last_block = 0
     async for range_block in range_extract(all_blocks_it()):
@@ -47,6 +60,21 @@ async def test_range_extract():
 @pytest.mark.asyncio
 async def test_find_big_gaps():
     ans = await find_big_gaps(time_span=timedelta(hours=1))
+    date_gaps = []
+    for start, end in ans:
+        start = get_block_datetime(start)
+        end = get_block_datetime(end)
+        date_gaps.append((start, end))
+        logging.info(f"Date gap: {start:%d-%m-%Y} ->  {end:%d-%m-%Y} | {end - start}")
+    logging.info(ans)
+    logging.info(date_gaps)
+    assert ans
+
+
+@pytest.mark.asyncio
+async def test_meta_find_big_gaps():
+    db = get_mongo_db(DB_NAME_META)
+    ans = await find_big_gaps(time_span=timedelta(hours=1), db=db)
     date_gaps = []
     for start, end in ans:
         start = get_block_datetime(start)

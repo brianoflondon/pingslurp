@@ -10,7 +10,7 @@ from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
 from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError, ServerSelectionTimeoutError
 
-from podping_hive.podping import Podping
+from pingslurp.podping import Podping
 
 load_dotenv()
 
@@ -90,7 +90,7 @@ async def insert_podping(db_client: AsyncIOMotorClient, pp: Podping) -> bool:
 
 
 async def block_at_postion(position=1, db: AsyncIOMotorCollection = None) -> int:
-    if not db:
+    if db is None:
         db = get_mongo_db()
     sort_order = 1
     if position < 0:
@@ -100,7 +100,7 @@ async def block_at_postion(position=1, db: AsyncIOMotorCollection = None) -> int
     i = 0
     async for doc in cursor:
         if i == position:
-            return doc["block_num"]
+            return int(doc["block_num"])
         i += 1
     return 0
 
@@ -108,7 +108,7 @@ async def block_at_postion(position=1, db: AsyncIOMotorCollection = None) -> int
 async def all_blocks(db: AsyncIOMotorCollection = None) -> List:
     """Return a set of all block_num currently in the database from lowest to
     highest"""
-    if not db:
+    if db is None:
         db = get_mongo_db()
     cursor = db.find({}, {"block_num": 1}).sort([("block_num", 1)])
     ans = list()
@@ -120,7 +120,7 @@ async def all_blocks(db: AsyncIOMotorCollection = None) -> List:
 async def all_blocks_it(db: AsyncIOMotorCollection = None) -> AsyncIterator[int]:
     """Returns iterator of set of all block_num currently in the database from lowest to
     highest"""
-    if not db:
+    if db is None:
         db = get_mongo_db()
     cursor = db.find({}, {"block_num": 1}).sort([("block_num", 1)])
     async for doc in cursor:
@@ -128,7 +128,7 @@ async def all_blocks_it(db: AsyncIOMotorCollection = None) -> AsyncIterator[int]
 
 
 async def find_big_gaps(
-    block_gap_size: int = None, time_span: timedelta = None
+    block_gap_size: int = None, time_span: timedelta = None, db: AsyncIOMotorCollection = None
 ) -> List[Tuple[int, int]]:
     """Find big gaps in block list greater than block_gap_size blocks or
     time_span seconds."""
@@ -140,7 +140,7 @@ async def find_big_gaps(
     big_gaps = []
     gap = (0, 0)
     last_block = 0
-    async for range_block in range_extract(all_blocks_it()):
+    async for range_block in range_extract(all_blocks_it(db=db)):
 
         if range_block[0] - last_block > block_gap_size:
             logging.info(f"Big gap at: {range_block}")

@@ -2,7 +2,7 @@ from asyncio import exceptions
 
 import pytest
 
-from podping_hive.hive_calls import (
+from pingslurp.hive_calls import (
     get_hive_blockchain,
     send_notification_via_api,
     verify_hive_connection,

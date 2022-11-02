@@ -14,7 +14,7 @@ services:
       - "127.0.0.1:27017:27017"
     # command: mongod --bind_ip localhost,${LOCAL_TAILSCALE_NAME} --replSet v4vapp-repl
     volumes:
-      - mongodb-pp-data:/data/db
+      - mongodb-pingslurp-data:/data/db
     restart: always
     logging:
       driver: "json-file"
@@ -22,10 +22,10 @@ services:
           max-file: "5"
           max-size: "10m"
     networks:
-      - podping-hive
+      - pingslurp
 
   hive-podping:
-    container_name: hive-podping
+    container_name: pingslurp
     build:
       context: .
       dockerfile: Dockerfile
@@ -41,11 +41,11 @@ services:
     command: bash -c "python scanner.py"
     restart: unless-stopped
     networks:
-      - podping-hive
+      - pingslurp
 
 volumes:
-  mongodb-pp-data:
+  mongodb-pingslurp-data:
     driver: local
 
 networks:
-  podping-hive:
+  pingslurp:

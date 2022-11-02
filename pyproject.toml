@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "podping-hive"
+name = "pingslurp"
 version = "0.1.0"
 description = "Keeping up with the Podpings"
 authors = ["Brian of London <brian@podping.org>"]

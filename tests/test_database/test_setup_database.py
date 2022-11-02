@@ -1,6 +1,6 @@
 import pytest
 
-from podping_hive.database import setup_mongo_db
+from pingslurp.database import setup_mongo_db
 
 
 def test_setup_mongo_db():

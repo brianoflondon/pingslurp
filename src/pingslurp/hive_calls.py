@@ -14,14 +14,16 @@ from beemapi.exceptions import NumRetriesReached
 from httpx import URL
 from motor.motor_asyncio import AsyncIOMotorClient
 
-from podping_hive.async_wrapper import sync_to_async_iterable
-from podping_hive.database import get_mongo_client, insert_podping
-from podping_hive.podping import Podping
+from pingslurp.async_wrapper import sync_to_async_iterable
+from pingslurp.database import get_mongo_client, insert_podping
+from pingslurp.podping import Podping
 
 
 class HiveConnectionError(Exception):
     pass
 
+
+DATABASE_QUEUE: "asyncio.Queue[str]" = asyncio.Queue()
 
 MAIN_NODES: List[str] = [
     "https://hive-api.3speak.tv/",
@@ -37,7 +39,7 @@ MAIN_NODES: List[str] = [
     # "https://anyx.io",
 ]
 
-MAIN_NODES: List[str] = ["http://cepo-v4vapp:8091/"]
+# MAIN_NODES: List[str] = ["https://rpc.podping.org/"]
 
 OP_NAMES = ["custom_json"]
 HIVE_STATUS_OUTPUT_BLOCKS = 50
@@ -155,21 +157,9 @@ def get_start_block(
         return prev_block_num
     elif time_delta:
         start_time = datetime.utcnow() - time_delta
-        prev_block_num = blockchain.get_estimated_block_num(start_time)
+        temp_blockchain = Blockchain()
+        prev_block_num = temp_blockchain.get_estimated_block_num(start_time)
         return prev_block_num
-
-    prev_block_num = blockchain.get_current_block_num()
-
-    response = httpx.get(url=local_api_url("hive/block_num"), timeout=480)
-    if response.status_code == 200:
-        prev_block_num = response.json()["block_num"] - 10
-    else:
-        time_delta = timedelta(minutes=60)
-        start_time = datetime.utcnow() - time_delta
-        prev_block_num = blockchain.get_estimated_block_num(start_time)
-        return prev_block_num
-    # start watching back this far
-    return prev_block_num
 
 
 def output_status(
@@ -235,17 +225,17 @@ async def keep_checking_hive_stream(
     try:
         tasks = []
         async for post in stream:
-            if len(tasks) > 20:
-                await asyncio.gather(*tasks)
-                tasks = []
             prev_block_num, counter, block_num_change = output_status(
                 post, prev_block_num, counter, message=message
             )
+            if len(tasks) > 10:
+                await asyncio.gather(*tasks)
+                tasks = []
             if post["type"] in OP_NAMES and (
                 post.get("id").startswith("pp_") or post.get("id").startswith("pplt_")
             ):
                 podping = Podping.parse_obj(post)
-                tasks.append(insert_and_report_podping(client,podping,message))
+                tasks.append(insert_and_report_podping(client, podping, message))
             if post["block_num"] > end_block:
                 logging.info(
                     f"{message}Search Complete from {start_block} to {end_block}"
@@ -275,7 +265,9 @@ async def keep_checking_hive_stream(
         raise HiveConnectionError
 
 
-async def insert_and_report_podping(client: AsyncIOMotorClient, podping: Podping, message: str):
+async def insert_and_report_podping(
+    client: AsyncIOMotorClient, podping: Podping, message: str
+):
     if await insert_podping(client, podping):
         logging.info(
             f"{message}New       podping: {podping.trx_id} | {podping.required_posting_auths} | {podping.block_num}"
