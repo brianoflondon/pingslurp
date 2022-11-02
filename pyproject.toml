@@ -18,6 +18,7 @@ beem = {git = "https://gitlab.syncad.com/hive/beem.git"}
 httpx = "^0.23.0"
 pymssql = "^2.2.5"
 python-dotenv = "^0.21.0"
+typer = {extras = ["all"], version = "^0.6.1"}
 
 
 [tool.poetry.group.dev.dependencies]

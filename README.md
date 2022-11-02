@@ -1,2 +1,2 @@
-# podping-hive
-The source of information about Podping
+# PingSlurp
+Slurping up PodPings and serving them out.

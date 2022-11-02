@@ -37,10 +37,10 @@ def setup_mongo_db() -> None:
     if not DB_NAME in collection_names:
         client.create_collection(DB_NAME)
         logging.info(f"DB: {DB_NAME} created in database")
-    client[DB_NAME].create_index("trx_id", name="trx_id", unique=True)
-    # db["DB_NAME"].create_index({"id":"text","iris":"text"}, name="id_text_iris_text", )
-    logging.info(f"DB: {DB_NAME} created in database")
+    else:
+        logging.info(f"DB: {DB_NAME} already exists in database")
 
+    client[DB_NAME].create_index("trx_id", name="trx_id", unique=True)
     if not DB_NAME_META in collection_names:
         # Create timeseries collection:
         client.create_collection(
@@ -52,6 +52,8 @@ def setup_mongo_db() -> None:
             },
         )
         logging.info(f"DB: {DB_NAME_META} created in database")
+    else:
+        logging.info(f"DB: {DB_NAME_META} already exists in database")
     return
 
 

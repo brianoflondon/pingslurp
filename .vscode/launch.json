@@ -5,11 +5,12 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Scanner",
+            "name": "pingslurp",
             "type": "python",
             "request": "launch",
             "envFile": "${workspaceFolder}/.env",
-            "program": "${workspaceFolder}/src/scanner.py",
+            "program": "${workspaceFolder}/src/pingslurp.py",
+            // "args": ["--help"],
             "console": "integratedTerminal",
             "justMyCode": true,
         }

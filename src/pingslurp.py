@@ -1,20 +1,9 @@
 import asyncio
-import enum
-import inspect
-import json
 import logging
-import os
-from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta
-from email.mime import message
-from functools import wraps
 from timeit import default_timer as timer
-from typing import Any, List, Literal, Optional
 
-import backoff
-from lighthive.client import Client
-from lighthive.datastructures import Operation
-from lighthive.exceptions import RPCNodeException
+import typer
+
 from lighthive.helpers.account import VOTING_MANA_REGENERATION_IN_SECONDS
 from lighthive.node_picker import compare_nodes
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
@@ -61,16 +50,26 @@ async def main_loop():
             start_block = await block_at_postion(-1) - 50
             pass
 
+async def setup_check_database():
+    """Check if we have a database and return stuff"""
+    setup_mongo_db()
 
-if __name__ == "__main__":
+def main(start_block: int = None):
+    """
+    Start Slurping up Podpings
+    """
     debug = False
     logging.basicConfig(
         level=logging.INFO if not debug else logging.DEBUG,
         format="%(asctime)s %(levelname)-8s %(module)-14s %(lineno) 5d : %(message)s",
         datefmt="%m-%dT%H:%M:%S",
     )
-    # client = get_client()
-    # logging.info(client.current_node)
+
+    if not start_block:
+        asyncio.run(setup_check_database())
+
+
+    raise typer.Exit()
     try:
         asyncio.run(main_loop())
 
@@ -80,3 +79,8 @@ if __name__ == "__main__":
         raise
     except KeyboardInterrupt:
         logging.info("Interrupted with ctrc-C")
+
+
+
+if __name__ == "__main__":
+    typer.run(main)

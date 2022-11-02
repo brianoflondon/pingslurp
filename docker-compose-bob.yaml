@@ -33,7 +33,7 @@ services:
       - ".env"
     # environment:
     #   DB_CONNECTION: "mongodb://mongodb-pp:27017"
-    command: bash -c "python scanner.py"
+    command: bash -c "python pingslurp.py"
     restart: unless-stopped
     networks:
       - podping-hive
