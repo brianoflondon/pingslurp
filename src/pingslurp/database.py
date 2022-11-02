@@ -1,4 +1,5 @@
 import asyncio
+import itertools
 import logging
 import os
 from datetime import timedelta
@@ -10,50 +11,46 @@ from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
 from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError, ServerSelectionTimeoutError
 
+from pingslurp.config import Config
 from pingslurp.podping import Podping
-
-load_dotenv()
-
-DB_CONNECTION = os.getenv("DB_CONNECTION")
-
-DB_NAME = "all_podpings"
-DB_NAME_META = "meta_ts"
 
 
 def get_mongo_db(collection: str = "all_podpings") -> AsyncIOMotorCollection:
     """Returns the MongoDB"""
-    return AsyncIOMotorClient(DB_CONNECTION)["podping"][collection]
+    return AsyncIOMotorClient(Config.DB_CONNECTION)[Config.ROOT_DB_NAME][collection]
 
 
 def get_mongo_client() -> AsyncIOMotorClient:
-    return AsyncIOMotorClient(DB_CONNECTION)["podping"]
+    return AsyncIOMotorClient(Config.DB_CONNECTION)[Config.ROOT_DB_NAME]
 
 
 def setup_mongo_db() -> None:
     """Check if the DB exists and set it up if needed. Returns number of new DBs"""
     count = 0
-    client = MongoClient(DB_CONNECTION)["podping"]
+    client = MongoClient(Config.DB_CONNECTION)[Config.ROOT_DB_NAME]
     collection_names = client.list_collection_names()
-    if not DB_NAME in collection_names:
-        client.create_collection(DB_NAME)
-        logging.info(f"DB: {DB_NAME} created in database")
+    if not Config.COLLECTION_NAME in collection_names:
+        client.create_collection(Config.COLLECTION_NAME)
+        logging.info(f"DB: {Config.COLLECTION_NAME} created in database")
     else:
-        logging.info(f"DB: {DB_NAME} already exists in database")
+        logging.info(f"DB: {Config.COLLECTION_NAME} already exists in database")
 
-    client[DB_NAME].create_index("trx_id", name="trx_id", unique=True)
-    if not DB_NAME_META in collection_names:
+    # Check/create indexes
+    client[Config.COLLECTION_NAME].create_index("trx_id", name="trx_id", unique=True)
+
+    if not Config.COLLECTION_NAME_META in collection_names:
         # Create timeseries collection:
         client.create_collection(
-            DB_NAME_META,
+            Config.COLLECTION_NAME_META,
             timeseries={
                 "timeField": "timestamp",
                 "metaField": "metadata",
                 "granularity": "seconds",
             },
         )
-        logging.info(f"DB: {DB_NAME_META} created in database")
+        logging.info(f"DB: {Config.COLLECTION_NAME_META} created in database")
     else:
-        logging.info(f"DB: {DB_NAME_META} already exists in database")
+        logging.info(f"DB: {Config.COLLECTION_NAME_META} already exists in database")
     return
 
 
@@ -63,32 +60,32 @@ async def insert_podping(db_client: AsyncIOMotorClient, pp: Podping) -> bool:
     data = pp.db_format()
     data_meta = pp.db_format_meta()
     try:
-        ans = await db_client[DB_NAME].insert_one(data)
+        ans = await db_client[Config.COLLECTION_NAME].insert_one(data)
         # if we have a new podping, store its metadata
         try:
-            ans2 = await db_client[DB_NAME_META].insert_one(data_meta)
+            ans2 = await db_client[Config.COLLECTION_NAME_META].insert_one(data_meta)
             new_value = {"$set": {"stored_meta": True}}
-            ans3 = await db_client[DB_NAME].update_one(
-                {'trx_id': pp.trx_id}, new_value
+            ans3 = await db_client[Config.COLLECTION_NAME].update_one(
+                {"trx_id": pp.trx_id}, new_value
             )
         except Exception as ex:
             logging.error(ex)
     except DuplicateKeyError as ex:
-        doc = await db_client[DB_NAME].find_one({'trx_id': pp.trx_id})
+        doc = await db_client[Config.COLLECTION_NAME].find_one({"trx_id": pp.trx_id})
         if not doc.get("stored_meta"):
-            ans2 = await db_client[DB_NAME_META].insert_one(data_meta)
+            ans2 = await db_client[Config.COLLECTION_NAME_META].insert_one(data_meta)
             new_value = {"$set": {"stored_meta": True}}
-            ans3 = await db_client[DB_NAME].update_one(
-                {'trx_id': pp.trx_id}, new_value
+            ans3 = await db_client[Config.COLLECTION_NAME].update_one(
+                {"trx_id": pp.trx_id}, new_value
             )
-            logging.info(f"Metadata updated for        {pp.trx_id}")
+            logging.debug(f"Metadata updated for        {pp.trx_id}")
         else:
-            logging.info(f"Metadata already exists for {pp.trx_id}")
+            logging.debug(f"Metadata already exists for {pp.trx_id}")
         return False
     return True
 
-# async def store_meta()
 
+# async def store_meta()
 
 
 async def block_at_postion(position=1, db: AsyncIOMotorCollection = None) -> int:
@@ -129,8 +126,19 @@ async def all_blocks_it(db: AsyncIOMotorCollection = None) -> AsyncIterator[int]
         yield doc["block_num"]
 
 
+async def is_empty(iterable: AsyncIterator):
+    """Returns true if the async iterator is not empty"""
+    try:
+        _ = await iterable.__anext__()
+    except StopAsyncIteration:
+        return True
+    return False
+
+
 async def find_big_gaps(
-    block_gap_size: int = None, time_span: timedelta = None, db: AsyncIOMotorCollection = None
+    block_gap_size: int = None,
+    time_span: timedelta = None,
+    db: AsyncIOMotorCollection = None,
 ) -> List[Tuple[int, int]]:
     """Find big gaps in block list greater than block_gap_size blocks or
     time_span seconds."""
@@ -143,13 +151,10 @@ async def find_big_gaps(
     gap = (0, 0)
     last_block = 0
     async for range_block in range_extract(all_blocks_it(db=db)):
-
         if range_block[0] - last_block > block_gap_size:
             logging.info(f"Big gap at: {range_block}")
             gap = (last_block, range_block[0] - 1)
-
             big_gaps.append(gap)
-
         last_block = max(range_block)
     return big_gaps
 
@@ -158,7 +163,7 @@ async def range_extract(iterable: AsyncIterator) -> AsyncIterator:
     """Assumes iterable is sorted sequentially. Returns iterator of range tuples."""
     try:
         i = await iterable.__anext__()
-    except StopIteration:
+    except StopAsyncIteration:
         return
 
     while True:

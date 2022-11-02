@@ -25,21 +25,23 @@ class HiveConnectionError(Exception):
 
 DATABASE_QUEUE: "asyncio.Queue[str]" = asyncio.Queue()
 
-MAIN_NODES: List[str] = [
-    "https://hive-api.3speak.tv/",
-    # "https://api.pharesim.me", #Failing during HF26
-    "https://hived.emre.sh",
-    # "https://rpc.ausbit.dev",  # TypeError: string indices must be integers
-    # "https://hived.privex.io",
-    # "https://hive-api.arcange.eu",
-    # "https://rpc.ecency.com",
-    "https://api.hive.blog",  # TypeError
-    "https://api.openhive.network",
-    # "https://api.ha.deathwing.me",
-    # "https://anyx.io",
-]
+# MAIN_NODES: List[str] = [
+#     "https://hive-api.3speak.tv/",
+#     # "https://api.pharesim.me", #Failing during HF26
+#     "https://hived.emre.sh",
+#     # "https://rpc.ausbit.dev",  # TypeError: string indices must be integers
+#     # "https://hived.privex.io",
+#     # "https://hive-api.arcange.eu",
+#     # "https://rpc.ecency.com",
+#     "https://api.hive.blog",  # TypeError
+#     "https://api.openhive.network",
+#     # "https://api.ha.deathwing.me",
+#     # "https://anyx.io",
+# ]
 
-# MAIN_NODES: List[str] = ["https://rpc.podping.org/"]
+MAIN_NODES: List[str] = ["https://rpc.podping.org/"]
+# MAIN_NODES: List[str] = ["http://cepo-v4vapp:8091/"]
+
 
 OP_NAMES = ["custom_json"]
 HIVE_STATUS_OUTPUT_BLOCKS = 50
@@ -137,6 +139,11 @@ async def get_hive_blockchain() -> Tuple[Hive, Blockchain]:
             logging.error(f"{ex}")
             raise
 
+def get_current_hive_block_num() -> int:
+    """Returns the current Hive block number"""
+    hive = Hive(node=MAIN_NODES)
+    blockchain = Blockchain(blockchain_instance=hive, mode="head")
+    return blockchain.get_current_block_num()
 
 def get_block_datetime(block_num: int) -> datetime:
     """Returns the datetime of a specific block in the blockchain"""
@@ -176,7 +183,7 @@ def output_status(
             time_delta = seconds_only(
                 datetime.utcnow() - hive_post["timestamp"].replace(tzinfo=None)
             )
-            logging.info(f"{message}Block: {block_num:,} | " f"Timedelta: {time_delta}")
+            logging.info(f"{message:>8}Block: {block_num:,} | " f"Timedelta: {time_delta}")
             if time_delta < timedelta(seconds=0):
                 logging.warning(
                     f"Clock might be wrong showing a time drift {time_delta}"
@@ -196,7 +203,8 @@ async def keep_checking_hive_stream(
     time_delta: Optional[timedelta] = None,
     end_block: Optional[int] = sys.maxsize,
     message: Optional[str] = "",
-):
+    database_cache: Optional[int] = 10
+) -> int:
     try:
         hive, blockchain = await get_hive_blockchain()
     except HiveConnectionError:
@@ -220,15 +228,15 @@ async def keep_checking_hive_stream(
     )
     block_num = prev_block_num
     counter = 0
-
-    logging.info(f"{message}Starting to scan the chain at Block num: {block_num:,}")
+    if block_num:
+        logging.info(f"{message}Starting to scan the chain at Block num: {block_num:,}")
     try:
         tasks = []
         async for post in stream:
             prev_block_num, counter, block_num_change = output_status(
                 post, prev_block_num, counter, message=message
             )
-            if len(tasks) > 10:
+            if len(tasks) > database_cache:
                 await asyncio.gather(*tasks)
                 tasks = []
             if post["type"] in OP_NAMES and (
@@ -238,9 +246,10 @@ async def keep_checking_hive_stream(
                 tasks.append(insert_and_report_podping(client, podping, message))
             if post["block_num"] > end_block:
                 logging.info(
-                    f"{message}Search Complete from {start_block} to {end_block}"
+                    f"{message:>8}Search Complete from {start_block} to {end_block}"
                 )
-                return
+                await asyncio.gather(*tasks)
+                return block_num
 
     except asyncio.CancelledError as ex:
         await asyncio.gather(*tasks)
@@ -270,9 +279,9 @@ async def insert_and_report_podping(
 ):
     if await insert_podping(client, podping):
         logging.info(
-            f"{message}New       podping: {podping.trx_id} | {podping.required_posting_auths} | {podping.block_num}"
+            f"{message:>8}New       podping: {podping.trx_id} | {podping.required_posting_auths} | {podping.block_num}"
         )
     else:
         logging.info(
-            f"{message}Duplicate podping: {podping.trx_id} | {podping.required_posting_auths} | {podping.block_num}"
+            f"{message:>8}Duplicate podping: {podping.trx_id} | {podping.required_posting_auths} | {podping.block_num}"
         )

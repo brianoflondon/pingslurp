@@ -3,9 +3,8 @@ from datetime import timedelta
 
 import pytest
 
+from pingslurp.config import Config
 from pingslurp.database import (
-    DB_NAME,
-    DB_NAME_META,
     all_blocks,
     all_blocks_it,
     block_at_postion,
@@ -37,7 +36,7 @@ async def test_first_last_blocks():
 
 @pytest.mark.asyncio
 async def test_meta_first_last_blocks():
-    db = get_mongo_db(DB_NAME_META)
+    db = get_mongo_db(Config.COLLECTION_NAME_META)
     fb = await block_at_postion(0, db=db)
     assert fb
     lb = await block_at_postion(position=-1, db=db)
@@ -73,7 +72,7 @@ async def test_find_big_gaps():
 
 @pytest.mark.asyncio
 async def test_meta_find_big_gaps():
-    db = get_mongo_db(DB_NAME_META)
+    db = get_mongo_db(Config.COLLECTION_NAME_META)
     ans = await find_big_gaps(time_span=timedelta(hours=1), db=db)
     date_gaps = []
     for start, end in ans:
