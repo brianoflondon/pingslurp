@@ -91,7 +91,7 @@ async def history_loop(start_block: int, end_block: int):
                 database_cache=10,
                 message="HIST",
             ),
-            name = "history_task"
+            name="history_task",
         )
 
 
@@ -113,9 +113,11 @@ async def live_loop():
 async def catchup_loop():
     start_block = await block_at_postion(-1) - 20
     end_block = get_current_hive_block_num()
+
     async with asyncio.TaskGroup() as tg:
-        catchup_task = tg.create_task(history_loop(start_block=start_block,end_block=end_block))
-        live_task = tg.create_task(live_loop())
+        catchup_task = tg.create_task(
+            history_loop(start_block=start_block, end_block=end_block)
+        )
 
 
 @app.command()

@@ -23,8 +23,6 @@ class HiveConnectionError(Exception):
     pass
 
 
-DATABASE_QUEUE: "asyncio.Queue[str]" = asyncio.Queue()
-
 # MAIN_NODES: List[str] = [
 #     "https://hive-api.3speak.tv/",
 #     # "https://api.pharesim.me", #Failing during HF26
@@ -39,8 +37,8 @@ DATABASE_QUEUE: "asyncio.Queue[str]" = asyncio.Queue()
 #     # "https://anyx.io",
 # ]
 
-MAIN_NODES: List[str] = ["https://rpc.podping.org/"]
-# MAIN_NODES: List[str] = ["http://cepo-v4vapp:8091/"]
+# MAIN_NODES: List[str] = ["https://rpc.podping.org/"]
+MAIN_NODES: List[str] = ["http://cepo-v4vapp:8091/"]
 
 
 OP_NAMES = ["custom_json"]
@@ -139,11 +137,13 @@ async def get_hive_blockchain() -> Tuple[Hive, Blockchain]:
             logging.error(f"{ex}")
             raise
 
+
 def get_current_hive_block_num() -> int:
     """Returns the current Hive block number"""
     hive = Hive(node=MAIN_NODES)
     blockchain = Blockchain(blockchain_instance=hive, mode="head")
     return blockchain.get_current_block_num()
+
 
 def get_block_datetime(block_num: int) -> datetime:
     """Returns the datetime of a specific block in the blockchain"""
@@ -183,7 +183,9 @@ def output_status(
             time_delta = seconds_only(
                 datetime.utcnow() - hive_post["timestamp"].replace(tzinfo=None)
             )
-            logging.info(f"{message:>8}Block: {block_num:,} | " f"Timedelta: {time_delta}")
+            logging.info(
+                f"{message:>8}Block: {block_num:,} | " f"Timedelta: {time_delta}"
+            )
             if time_delta < timedelta(seconds=0):
                 logging.warning(
                     f"Clock might be wrong showing a time drift {time_delta}"
@@ -203,7 +205,7 @@ async def keep_checking_hive_stream(
     time_delta: Optional[timedelta] = None,
     end_block: Optional[int] = sys.maxsize,
     message: Optional[str] = "",
-    database_cache: Optional[int] = 10
+    database_cache: Optional[int] = 10,
 ) -> int:
     try:
         hive, blockchain = await get_hive_blockchain()
