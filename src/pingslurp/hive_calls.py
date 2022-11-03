@@ -40,8 +40,8 @@ class HiveConnectionError(Exception):
 # ]
 
 # MAIN_NODES: List[str] = ["https://rpc.podping.org/"]
-MAIN_NODES: List[str] = ["http://cepo-v4vapp:8091/"]
-
+# MAIN_NODES: List[str] = ["http://cepo-v4vapp:8091/"]
+MAIN_NODES: List[str] = ["http://hive-witness:8091/"]
 
 OP_NAMES = ["custom_json"]
 HIVE_STATUS_OUTPUT_BLOCKS = 50
@@ -143,7 +143,7 @@ async def get_hive_blockchain() -> Tuple[Hive, Blockchain]:
 def get_current_hive_block_num() -> int:
     """Returns the current Hive block number"""
     hive = Hive(node=MAIN_NODES)
-    blockchain = Blockchain(blockchain_instance=hive, mode="head")
+    blockchain = Blockchain(blockchain_instance=hive)
     return blockchain.get_current_block_num()
 
 
@@ -220,69 +220,70 @@ async def keep_checking_hive_stream(
         message += " | "
 
     client = get_mongo_client()
-
     prev_block_num = get_start_block(blockchain, start_block, time_delta)
-    stream = sync_to_async_iterable(
-        blockchain.stream(
-            opNames=OP_NAMES,
-            raw_ops=False,
-            start=prev_block_num,
-            max_batch_size=10,
-        )
-    )
-    block_num = prev_block_num
-    counter = 0
-    if block_num:
-        logging.info(f"{message}Starting to scan the chain at Block num: {block_num:,}")
-    try:
-        tasks = []
-        async for post in stream:
-            prev_block_num, counter, block_num_change = output_status(
-                post, prev_block_num, counter, message=message
+
+    while True:
+        stream = sync_to_async_iterable(
+            blockchain.stream(
+                opNames=OP_NAMES,
+                raw_ops=False,
+                start=prev_block_num,
+                max_batch_size=10,
             )
-            if len(tasks) > database_cache:
-                await asyncio.gather(*tasks)
-                tasks = []
-            if post["type"] in OP_NAMES and (
-                post.get("id").startswith("pp_") or post.get("id").startswith("pplt_")
-            ):
-                try:
-                    podping = Podping.parse_obj(post)
-                    tasks.append(insert_and_report_podping(client, podping, message))
-                except ValidationError as ex:
-                    logging.error("ValidationError")
-                    logging.error(json.dumps(post, indent=2, default=str))
-                    logging.error([post['json']])
-                    logging.error(ex)
-
-            if post["block_num"] > end_block:
-                logging.info(
-                    f"{message:>8}Search Complete from {start_block} to {end_block}"
-                )
-                await asyncio.gather(*tasks)
-                return block_num
-
-    except asyncio.CancelledError as ex:
-        await asyncio.gather(*tasks)
-        logging.warning("asyncio.CancelledError raised in keep_checking_hive_stream")
-        logging.warning(f"{ex} {ex.__class__}")
-        raise
-    except KeyboardInterrupt:
-        await asyncio.gather(*tasks)
-        raise
-    except (httpx.ReadTimeout, Exception) as ex:
-        await asyncio.gather(*tasks)
-        asyncio.create_task(
-            send_notification_via_api(
-                notify="pingslurp: Error watching Hive", alert_level=5
-            ),
-            name="keep_checking_hive_error_notification",
         )
-        logging.error(f"Exception in Hive Watcher  {ex}")
-        logging.error(ex)
-        logging.warning(f"Last good block: {prev_block_num:,}")
-        await asyncio.sleep(10)
-        raise HiveConnectionError
+        block_num = prev_block_num
+        counter = 0
+        if block_num:
+            logging.info(f"{message}Starting to scan the chain at Block num: {block_num:,}")
+        try:
+            tasks = []
+            async for post in stream:
+                prev_block_num, counter, block_num_change = output_status(
+                    post, prev_block_num, counter, message=message
+                )
+                if len(tasks) > database_cache:
+                    await asyncio.gather(*tasks)
+                    tasks = []
+                if post["type"] in OP_NAMES and (
+                    post.get("id").startswith("pp_") or post.get("id").startswith("pplt_")
+                ):
+                    try:
+                        podping = Podping.parse_obj(post)
+                        tasks.append(insert_and_report_podping(client, podping, message))
+                    except ValidationError as ex:
+                        logging.error("ValidationError")
+                        logging.error(json.dumps(post, indent=2, default=str))
+                        logging.error([post['json']])
+                        logging.error(ex)
+
+                if post["block_num"] > end_block:
+                    logging.info(
+                        f"{message:>8}Search Complete from {start_block} to {end_block}"
+                    )
+                    await asyncio.gather(*tasks)
+                    return block_num
+
+        except asyncio.CancelledError as ex:
+            await asyncio.gather(*tasks)
+            logging.warning("asyncio.CancelledError raised in keep_checking_hive_stream")
+            logging.warning(f"{ex} {ex.__class__}")
+            raise
+        except KeyboardInterrupt:
+            await asyncio.gather(*tasks)
+            raise
+        except (httpx.ReadTimeout, Exception) as ex:
+            await asyncio.gather(*tasks)
+            asyncio.create_task(
+                send_notification_via_api(
+                    notify="pingslurp: Error watching Hive", alert_level=5
+                ),
+                name="keep_checking_hive_error_notification",
+            )
+            logging.error(f"Exception in Hive Watcher  {ex}")
+            logging.error(ex)
+            logging.warning(f"Last good block: {prev_block_num:,}")
+            await asyncio.sleep(10)
+            prev_block_num -= 20
 
 
 async def insert_and_report_podping(
