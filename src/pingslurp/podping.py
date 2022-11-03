@@ -5,6 +5,7 @@ from typing import Any, List, Literal
 from pydantic import BaseModel, validator
 
 mediums = {
+    "mixed",
     "podcast",
     "music",
     "video",

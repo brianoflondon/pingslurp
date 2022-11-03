@@ -111,7 +111,8 @@ async def live_loop():
 
 
 async def catchup_loop():
-    start_block = await block_at_postion(-1) - 20
+    start_block = 69329927 # await block_at_postion(0) - 1000
+    end_block = await block_at_postion(0)
     end_block = get_current_hive_block_num()
 
     async with asyncio.TaskGroup() as tg:
@@ -148,7 +149,7 @@ def catchup():
     setup_mongo_db()
     try:
         asyncio.run(catchup_loop())
-        live()
+        # live()
     except asyncio.CancelledError as ex:
         logging.warning("asyncio.CancelledError raised")
         logging.warning(ex)

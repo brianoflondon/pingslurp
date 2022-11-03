@@ -36,9 +36,9 @@ services:
           max-size: "10m"
     env_file:
       - ".env"
-    environment:
-      DB_CONNECTION: "mongodb://mongodb-pp:27017"
-    command: bash -c "python pingslurp.py live"
+    # environment:
+    #   DB_CONNECTION: "mongodb://mongodb-pp:27017"
+    command: bash -c "python pingslurp.py catchup"
     restart: unless-stopped
     networks:
       - pingslurp

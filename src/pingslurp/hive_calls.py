@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import sys
 from datetime import datetime, timedelta
@@ -13,6 +14,7 @@ from beem.blockchain import Blockchain
 from beemapi.exceptions import NumRetriesReached
 from httpx import URL
 from motor.motor_asyncio import AsyncIOMotorClient
+from pydantic import ValidationError
 
 from pingslurp.async_wrapper import sync_to_async_iterable
 from pingslurp.database import get_mongo_client, insert_podping
@@ -244,8 +246,15 @@ async def keep_checking_hive_stream(
             if post["type"] in OP_NAMES and (
                 post.get("id").startswith("pp_") or post.get("id").startswith("pplt_")
             ):
-                podping = Podping.parse_obj(post)
-                tasks.append(insert_and_report_podping(client, podping, message))
+                try:
+                    podping = Podping.parse_obj(post)
+                    tasks.append(insert_and_report_podping(client, podping, message))
+                except ValidationError as ex:
+                    logging.error("ValidationError")
+                    logging.error(json.dumps(post, indent=2, default=str))
+                    logging.error([post['json']])
+                    logging.error(ex)
+
             if post["block_num"] > end_block:
                 logging.info(
                     f"{message:>8}Search Complete from {start_block} to {end_block}"
