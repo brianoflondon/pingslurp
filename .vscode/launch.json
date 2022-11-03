@@ -27,6 +27,18 @@
             "justMyCode": false,
         },
         {
+            "name": "pingslurp fillgaps",
+            "type": "python",
+            "request": "launch",
+            "envFile": "${workspaceFolder}/.env",
+            "program": "${workspaceFolder}/src/pingslurp.py",
+            "args": [
+                "fillgaps"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false,
+        },
+        {
             "name": "pingslurp check",
             "type": "python",
             "request": "launch",

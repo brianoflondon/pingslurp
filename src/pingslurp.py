@@ -71,13 +71,6 @@ def check():
     """
     Check Pingslurp
     """
-    debug = False
-    logging.basicConfig(
-        level=logging.INFO if not debug else logging.DEBUG,
-        format="%(asctime)s %(levelname)-8s %(module)-14s %(lineno) 5d : %(message)s",
-        datefmt="%m-%dT%H:%M:%S",
-    )
-
     asyncio.run(setup_check_database())
     raise typer.Exit()
 
@@ -105,9 +98,10 @@ async def live_loop():
         )
 
 
-
 async def catchup_loop():
-    start_block = await block_at_postion(0) - int(7200 / 3) # await block_at_postion(0) - 1000
+    start_block = await block_at_postion(0) - int(
+        7200 / 3
+    )  # await block_at_postion(0) - 1000
     # end_block = await block_at_postion(0)
     end_block = get_current_hive_block_num()
 
@@ -154,6 +148,46 @@ def catchup():
         logging.info("Interrupted with ctrc-C")
         raise typer.Exit()
 
+async def fillgaps_loop():
+    time_span = timedelta(seconds=360)
+    block_gaps, date_gaps = await find_date_gaps(time_span=time_span)
+    async with asyncio.TaskGroup() as tg:
+        for i, gap in enumerate(block_gaps[1:-1]):
+            message = f"GAP {i:3}"
+            tg.create_task(
+                keep_checking_hive_stream(
+                    start_block=gap[0] -10,
+                    end_block=gap[1] + 10,
+                    database_cache=10,
+                    message=message,
+                ),
+                name=message,
+            )
+
+
+
+        # catchup_task = tg.create_task(
+        #     history_loop(start_block=start_block, end_block=end_block)
+        # )
+
+    # print(date_gaps)
+
+
+
+@app.command()
+def fillgaps():
+    """
+    Finds gaps in current database and fills them.
+    """
+    try:
+        asyncio.run(fillgaps_loop())
+    except asyncio.CancelledError as ex:
+        logging.warning("asyncio.CancelledError raised")
+        logging.warning(ex)
+        raise typer.Exit()
+    except KeyboardInterrupt:
+        logging.info("Interrupted with ctrc-C")
+        raise typer.Exit()
 
 if __name__ == "__main__":
     app()

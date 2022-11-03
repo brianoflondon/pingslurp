@@ -45,7 +45,7 @@ MAIN_NODES: List[str] = [
     "http://cepo-v4vapp:8091/",
     "https://rpc.podping.org/",
     "https://api.hive.blog/",
-    "https://api.deathwing.me/"
+    "https://api.deathwing.me/",
 ]
 # MAIN_NODES: List[str] = ["http://hive-witness:8091/"]
 
@@ -81,7 +81,7 @@ async def send_notification_via_api(notify: str, alert_level: int) -> None:
 
 async def verify_hive_connection() -> bool:
     """Scan through all the nodes in use and see if we can get one"""
-    shuffle(MAIN_NODES)
+    # shuffle(MAIN_NODES)
     for node in MAIN_NODES:
         try:
             logging.info(f"Checking node: {node}")
@@ -175,7 +175,11 @@ def get_start_block(
 
 
 def output_status(
-    hive_post: dict, prev_block_num: int, counter: int, message: str = ""
+    hive_post: dict,
+    prev_block_num: int,
+    counter: int,
+    message: str = "",
+    hive: Hive = "",
 ) -> Tuple[int, int, bool]:
     """Output a status line for the Hive scanner"""
     block_num = hive_post["block_num"]
@@ -185,11 +189,13 @@ def output_status(
         blocknum_change = True
         prev_block_num = block_num
         if counter > HIVE_STATUS_OUTPUT_BLOCKS - 1:
+            hive_string = f" | {hive.data.get('last_node')}" if hive else ""
             time_delta = seconds_only(
                 datetime.utcnow() - hive_post["timestamp"].replace(tzinfo=None)
             )
             logging.info(
-                f"{message:>8}Block: {block_num:,} | " f"Timedelta: {time_delta}"
+                f"{message:>8}Block: {block_num:,} | "
+                f"Timedelta: {time_delta} | {hive_string}"
             )
             if time_delta < timedelta(seconds=0):
                 logging.warning(
@@ -238,7 +244,7 @@ async def keep_checking_hive_stream(
             tasks = []
             async for post in stream:
                 prev_block_num, counter, block_num_change = output_status(
-                    post, prev_block_num, counter, message=message
+                    post, prev_block_num, counter, message=message, hive=hive
                 )
                 if len(tasks) > database_cache:
                     await asyncio.gather(*tasks)
