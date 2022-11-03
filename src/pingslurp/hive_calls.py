@@ -271,33 +271,9 @@ async def keep_checking_hive_stream(
                         logging.error(ex)
 
                 if post["block_num"] > end_block:
-                    duration = timer() -timer_start
-                    end_block_date = get_block_datetime(end_block)
-                    block_duration = end_block_date - start_block_date
-                    ret_message = (
-                        f"{message:>8}Scanned from {start_block} to {end_block}. "
-                        f"Finished scanning at {block_num}. New Pings: {count_new} | "
-                        f"Time to scan: {seconds_only(timedelta(seconds=duration))} | "
-                        f"Block time  : {seconds_only(block_duration)} | "
-                        f"Speedup     : {(block_duration.seconds / duration):.1f}"
-                    )
-                    logging.info(ret_message)
-                    await asyncio.gather(*tasks)
-                    return (
-                        block_num,
-                        ret_message,
-                    )
+                    break
 
-        except asyncio.CancelledError as ex:
-            await asyncio.gather(*tasks)
-            logging.warning(
-                "asyncio.CancelledError raised in keep_checking_hive_stream"
-            )
-            logging.warning(f"{ex} {ex.__class__}")
-            raise
-        except KeyboardInterrupt:
-            await asyncio.gather(*tasks)
-            raise
+
         except (httpx.ReadTimeout, Exception) as ex:
             await asyncio.gather(*tasks)
             asyncio.create_task(
@@ -311,6 +287,33 @@ async def keep_checking_hive_stream(
             logging.warning(f"Last good block: {prev_block_num:,}")
             await asyncio.sleep(10)
             prev_block_num -= 20
+        except asyncio.CancelledError as ex:
+            await asyncio.gather(*tasks)
+            logging.warning(
+                "asyncio.CancelledError raised in keep_checking_hive_stream"
+            )
+            logging.warning(f"{ex} {ex.__class__}")
+            raise
+        except KeyboardInterrupt:
+            await asyncio.gather(*tasks)
+            raise
+        finally:
+            await asyncio.gather(*tasks)
+            duration = timer() -timer_start
+            end_block_date = get_block_datetime(end_block)
+            block_duration = end_block_date - start_block_date
+            ret_message = (
+                f"{message:>8}Scanned from {start_block} to {end_block}. "
+                f"Finished scanning at {block_num}. New Pings: {count_new} | "
+                f"Time to scan: {seconds_only(timedelta(seconds=duration))} | "
+                f"Block time: {seconds_only(block_duration)} | "
+                f"Speedup: {(block_duration.seconds / duration):.1f}"
+            )
+            logging.info(ret_message)
+            return (
+                block_num,
+                ret_message,
+            )
 
 
 async def insert_and_report_podping(
