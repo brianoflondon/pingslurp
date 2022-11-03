@@ -96,17 +96,14 @@ async def history_loop(start_block: int, end_block: int):
 
 
 async def live_loop():
-    start_block = get_current_hive_block_num() - 20
+    start_block = get_current_hive_block_num() - int(600 / 3)
     async with asyncio.TaskGroup() as tg:
-        try:
-            live_task = tg.create_task(
-                keep_checking_hive_stream(
-                    start_block=start_block, database_cache=0, message="LIVE"
-                )
+        live_task = tg.create_task(
+            keep_checking_hive_stream(
+                start_block=start_block, database_cache=0, message="LIVE"
             )
-        except HiveConnectionError:
-            start_block = await block_at_postion(-1) - 20
-            pass
+        )
+
 
 
 async def catchup_loop():

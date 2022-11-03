@@ -40,8 +40,14 @@ class HiveConnectionError(Exception):
 # ]
 
 # MAIN_NODES: List[str] = ["https://rpc.podping.org/"]
-# MAIN_NODES: List[str] = ["http://cepo-v4vapp:8091/"]
-MAIN_NODES: List[str] = ["http://hive-witness:8091/"]
+MAIN_NODES: List[str] = [
+    "http://hive-witness:8091/",
+    "http://cepo-v4vapp:8091/",
+    "https://rpc.podping.org/",
+    "https://api.hive.blog/",
+    "https://api.deathwing.me/"
+]
+# MAIN_NODES: List[str] = ["http://hive-witness:8091/"]
 
 OP_NAMES = ["custom_json"]
 HIVE_STATUS_OUTPUT_BLOCKS = 50
@@ -52,13 +58,10 @@ def seconds_only(time_delta: timedelta) -> timedelta:
     return time_delta - timedelta(microseconds=time_delta.microseconds)
 
 
-class Config:
-    LOCAL_V4VAPP_API = "http://adam-v4vapp:8000/"
-
-
 def local_api_url(endpoint: str = "") -> URL:
     """Return full local api URL"""
-    return httpx.URL(Config.LOCAL_V4VAPP_API + endpoint)
+    LOCAL_V4VAPP_API = "http://adam-v4vapp:8000/"
+    return httpx.URL(LOCAL_V4VAPP_API + endpoint)
 
 
 async def send_notification_via_api(notify: str, alert_level: int) -> None:
@@ -193,12 +196,6 @@ def output_status(
                     f"Clock might be wrong showing a time drift {time_delta}"
                 )
             counter = 0
-            response = httpx.post(
-                url=local_api_url("hive/block_num"),
-                params={"block_num": block_num, "time_delta": time_delta},
-                timeout=480,
-            )
-            logging.debug(response.json())
     return prev_block_num, counter, blocknum_change
 
 
@@ -234,7 +231,9 @@ async def keep_checking_hive_stream(
         block_num = prev_block_num
         counter = 0
         if block_num:
-            logging.info(f"{message}Starting to scan the chain at Block num: {block_num:,}")
+            logging.info(
+                f"{message}Starting to scan the chain at Block num: {block_num:,}"
+            )
         try:
             tasks = []
             async for post in stream:
@@ -245,15 +244,18 @@ async def keep_checking_hive_stream(
                     await asyncio.gather(*tasks)
                     tasks = []
                 if post["type"] in OP_NAMES and (
-                    post.get("id").startswith("pp_") or post.get("id").startswith("pplt_")
+                    post.get("id").startswith("pp_")
+                    or post.get("id").startswith("pplt_")
                 ):
                     try:
                         podping = Podping.parse_obj(post)
-                        tasks.append(insert_and_report_podping(client, podping, message))
+                        tasks.append(
+                            insert_and_report_podping(client, podping, message)
+                        )
                     except ValidationError as ex:
                         logging.error("ValidationError")
                         logging.error(json.dumps(post, indent=2, default=str))
-                        logging.error([post['json']])
+                        logging.error([post["json"]])
                         logging.error(ex)
 
                 if post["block_num"] > end_block:
@@ -265,7 +267,9 @@ async def keep_checking_hive_stream(
 
         except asyncio.CancelledError as ex:
             await asyncio.gather(*tasks)
-            logging.warning("asyncio.CancelledError raised in keep_checking_hive_stream")
+            logging.warning(
+                "asyncio.CancelledError raised in keep_checking_hive_stream"
+            )
             logging.warning(f"{ex} {ex.__class__}")
             raise
         except KeyboardInterrupt:
