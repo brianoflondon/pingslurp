@@ -1,8 +1,9 @@
 import asyncio
 import logging
 from datetime import datetime, timedelta
+import sys
 from timeit import default_timer as timer
-from typing import Coroutine, List, Tuple
+from typing import Coroutine, List, Optional, Tuple
 
 import typer
 from motor.motor_asyncio import AsyncIOMotorCollection
@@ -21,6 +22,7 @@ from pingslurp.database import (
 from pingslurp.hive_calls import (
     HiveConnectionError,
     get_block_datetime,
+    get_block_num,
     get_current_hive_block_num,
     keep_checking_hive_stream,
 )
@@ -75,17 +77,23 @@ def check():
     raise typer.Exit()
 
 
-async def history_loop(start_block: int, end_block: int):
+async def history_loop(
+    start_block: Optional[int] = None,
+    time_delta: Optional[timedelta] = None,
+    end_block: Optional[int] = sys.maxsize,
+):
     async with asyncio.TaskGroup() as tg:
         history_task = tg.create_task(
             keep_checking_hive_stream(
                 start_block=start_block,
                 end_block=end_block,
+                time_delta=time_delta,
                 database_cache=10,
                 message="HIST",
             ),
             name="history_task",
         )
+    logging.info(history_task.result())
 
 
 async def live_loop():
@@ -96,19 +104,20 @@ async def live_loop():
                 start_block=start_block, database_cache=0, message="LIVE"
             )
         )
+    logging.info(live_task.result())
 
 
-async def catchup_loop():
-    start_block = await block_at_postion(0) - int(
-        7200 / 3
-    )  # await block_at_postion(0) - 1000
-    # end_block = await block_at_postion(0)
-    end_block = get_current_hive_block_num()
+async def catchup_loop(start_block: int, end_block: int):
+    if not start_block:
+        start_block = await block_at_postion(0) - int(7200 / 3)
+    if not end_block:
+        end_block = get_current_hive_block_num()
 
     async with asyncio.TaskGroup() as tg:
         catchup_task = tg.create_task(
             history_loop(start_block=start_block, end_block=end_block)
         )
+    logging.info(catchup_task.result())
 
 
 async def fillgaps_loop():
@@ -121,7 +130,9 @@ async def fillgaps_loop():
         for i, gap in enumerate(block_gaps):
             start, end = date_gaps[i]
             message = f"GAP {i:3}"
-            logging.info(f"{message} |Date gap: {start:%d-%m-%Y} ->  {end:%d-%m-%Y} | {end - start}")
+            logging.info(
+                f"{message} |Date gap: {start:%d-%m-%Y} ->  {end:%d-%m-%Y} | {end - start}"
+            )
             found = tg.create_task(
                 keep_checking_hive_stream(
                     start_block=gap[0] - 10,
@@ -133,7 +144,7 @@ async def fillgaps_loop():
             )
             summary.append(found)
     for found in summary:
-        logging.info(found)
+        logging.info(found.result())
 
 
 def run_main_loop(task: Coroutine):
@@ -175,6 +186,26 @@ def fillgaps():
     Finds gaps in current database and fills them.
     """
     run_main_loop(fillgaps_loop())
+
+
+@app.command()
+def scanrange(
+    # start_block: Optional[int] = typer.Option(None, help="Starting block"),
+    # end_block: Optional[int]= typer.Option(None, help="Ending block"),
+    # start_date: Optional[datetime]=typer.Option(None, help="Date to start scanning from"),
+    # end_date: Optional[datetime]=typer.Option(None, help="Date to end scanning on"),
+    start_days: Optional[float] = typer.Option(
+        5, help="Days back to start scanning from"
+    ),
+    end_days: Optional[float] = typer.Option(0, help="Days backward to end scanning on"),
+):
+    """
+    Scans a range of blocks or dates
+    """
+    time_delta = timedelta(days=start_days)
+    time_delta_end = timedelta(days=end_days)
+    end_block = get_block_num(time_delta=time_delta_end)
+    run_main_loop(history_loop(time_delta=time_delta, end_block=end_block))
 
 
 if __name__ == "__main__":

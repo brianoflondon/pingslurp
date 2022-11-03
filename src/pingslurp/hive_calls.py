@@ -158,8 +158,7 @@ def get_block_datetime(block_num: int) -> datetime:
     return block_header.time()
 
 
-def get_start_block(
-    blockchain: Blockchain,
+def get_block_num(
     start_block: Optional[int] = None,
     time_delta: Optional[timedelta] = None,
 ) -> int:
@@ -216,6 +215,7 @@ async def keep_checking_hive_stream(
     Keeps watching the Hive stream either live or between block limits.
     Returns the last block processed and a result string when done
     """
+    timer_start = timer()
     try:
         hive, blockchain = await get_hive_blockchain()
     except HiveConnectionError:
@@ -227,7 +227,8 @@ async def keep_checking_hive_stream(
         message += " | "
 
     client = get_mongo_client()
-    prev_block_num = get_start_block(blockchain, start_block, time_delta)
+    prev_block_num = get_block_num(start_block, time_delta)
+    start_block_date = get_block_datetime(prev_block_num)
     count_new = 0
     while True:
         stream = sync_to_async_iterable(
@@ -235,7 +236,7 @@ async def keep_checking_hive_stream(
                 opNames=OP_NAMES,
                 raw_ops=False,
                 start=prev_block_num,
-                max_batch_size=10,
+                max_batch_size=25,
             )
         )
         block_num = prev_block_num
@@ -270,9 +271,15 @@ async def keep_checking_hive_stream(
                         logging.error(ex)
 
                 if post["block_num"] > end_block:
+                    duration = timer() -timer_start
+                    end_block_date = get_block_datetime(end_block)
+                    block_duration = end_block_date - start_block_date
                     ret_message = (
                         f"{message:>8}Scanned from {start_block} to {end_block}. "
-                        f"Finished scanning at {block_num}. New Pings: {count_new}"
+                        f"Finished scanning at {block_num}. New Pings: {count_new} | "
+                        f"Time to scan: {seconds_only(timedelta(seconds=duration))} | "
+                        f"Block time  : {seconds_only(block_duration)} | "
+                        f"Speedup     : {(block_duration.seconds / duration):.1f}"
                     )
                     logging.info(ret_message)
                     await asyncio.gather(*tasks)

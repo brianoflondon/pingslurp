@@ -5,6 +5,18 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "scanrange pingslurp",
+            "type": "python",
+            "request": "launch",
+            "envFile": "${workspaceFolder}/.env",
+            "program": "${workspaceFolder}/src/pingslurp.py",
+            "args": [
+                "scanrange", "--start-days", "14.95", "--end-days", "14.945"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true,
+        },
+        {
             "name": "catchup pingslurp",
             "type": "python",
             "request": "launch",
