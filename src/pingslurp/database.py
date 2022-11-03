@@ -152,7 +152,7 @@ async def find_big_gaps(
     last_block = 0
     async for range_block in range_extract(all_blocks_it(db=db)):
         if range_block[0] - last_block > block_gap_size:
-            logging.info(f"Big gap at: {range_block}")
+            logging.debug(f"Big gap at: {range_block}")
             gap = (last_block, range_block[0] - 1)
             big_gaps.append(gap)
         last_block = max(range_block)

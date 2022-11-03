@@ -211,20 +211,24 @@ async def keep_checking_hive_stream(
     end_block: Optional[int] = sys.maxsize,
     message: Optional[str] = "",
     database_cache: Optional[int] = 10,
-) -> int:
+) -> Tuple[int, str]:
+    """
+    Keeps watching the Hive stream either live or between block limits.
+    Returns the last block processed and a result string when done
+    """
     try:
         hive, blockchain = await get_hive_blockchain()
     except HiveConnectionError:
         logging.error("Can't connect to any Hive API Servers")
         await asyncio.sleep(1)
-        return
+        raise HiveConnectionError("Can't connect to any Hive API Serverr")
 
     if message:
         message += " | "
 
     client = get_mongo_client()
     prev_block_num = get_start_block(blockchain, start_block, time_delta)
-
+    count_new = 0
     while True:
         stream = sync_to_async_iterable(
             blockchain.stream(
@@ -247,7 +251,8 @@ async def keep_checking_hive_stream(
                     post, prev_block_num, counter, message=message, hive=hive
                 )
                 if len(tasks) > database_cache:
-                    await asyncio.gather(*tasks)
+                    new_pings = await asyncio.gather(*tasks)
+                    count_new += new_pings.count(True)
                     tasks = []
                 if post["type"] in OP_NAMES and (
                     post.get("id").startswith("pp_")
@@ -265,11 +270,16 @@ async def keep_checking_hive_stream(
                         logging.error(ex)
 
                 if post["block_num"] > end_block:
-                    logging.info(
-                        f"{message:>8}Search Complete from {start_block} to {end_block}"
+                    ret_message = (
+                        f"{message:>8}Scanned from {start_block} to {end_block}. "
+                        f"Finished scanning at {block_num}. New Pings: {count_new}"
                     )
+                    logging.info(ret_message)
                     await asyncio.gather(*tasks)
-                    return block_num
+                    return (
+                        block_num,
+                        ret_message,
+                    )
 
         except asyncio.CancelledError as ex:
             await asyncio.gather(*tasks)
@@ -298,12 +308,14 @@ async def keep_checking_hive_stream(
 
 async def insert_and_report_podping(
     client: AsyncIOMotorClient, podping: Podping, message: str
-):
+) -> bool:
     if await insert_podping(client, podping):
         logging.info(
             f"{message:>8}New       podping: {podping.trx_id} | {podping.required_posting_auths} | {podping.block_num}"
         )
+        return True
     else:
         logging.info(
             f"{message:>8}Duplicate podping: {podping.trx_id} | {podping.required_posting_auths} | {podping.block_num}"
         )
+        return False

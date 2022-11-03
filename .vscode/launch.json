@@ -5,7 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "pingslurp catuchup",
+            "name": "catchup pingslurp",
             "type": "python",
             "request": "launch",
             "envFile": "${workspaceFolder}/.env",
@@ -15,7 +15,7 @@
             "justMyCode": true,
         },
         {
-            "name": "pingslurp live",
+            "name": "live pingslurp",
             "type": "python",
             "request": "launch",
             "envFile": "${workspaceFolder}/.env",
@@ -24,10 +24,10 @@
                 "live"
             ],
             "console": "integratedTerminal",
-            "justMyCode": false,
+            "justMyCode": true,
         },
         {
-            "name": "pingslurp fillgaps",
+            "name": "fillgaps pingslurp ",
             "type": "python",
             "request": "launch",
             "envFile": "${workspaceFolder}/.env",
@@ -36,7 +36,7 @@
                 "fillgaps"
             ],
             "console": "integratedTerminal",
-            "justMyCode": false,
+            "justMyCode": true,
         },
         {
             "name": "pingslurp check",

@@ -2,7 +2,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 from timeit import default_timer as timer
-from typing import List, Tuple
+from typing import Coroutine, List, Tuple
 
 import typer
 from motor.motor_asyncio import AsyncIOMotorCollection
@@ -111,15 +111,34 @@ async def catchup_loop():
         )
 
 
-@app.command()
-def live():
-    """
-    Start the Pingslurp slurping up new podpings from right now
-    """
-    logging.info("Starting to slurp")
-    setup_mongo_db()
+async def fillgaps_loop():
+    time_span = timedelta(seconds=360)
+    block_gaps, date_gaps = await find_date_gaps(time_span=time_span)
+    date_gaps = date_gaps[1:-1]
+    block_gaps = block_gaps[1:-1]
+    summary = []
+    async with asyncio.TaskGroup() as tg:
+        for i, gap in enumerate(block_gaps):
+            start, end = date_gaps[i]
+            message = f"GAP {i:3}"
+            logging.info(f"{message} |Date gap: {start:%d-%m-%Y} ->  {end:%d-%m-%Y} | {end - start}")
+            found = tg.create_task(
+                keep_checking_hive_stream(
+                    start_block=gap[0] - 10,
+                    end_block=gap[1] + 10,
+                    database_cache=10,
+                    message=message,
+                ),
+                name=message,
+            )
+            summary.append(found)
+    for found in summary:
+        logging.info(found)
+
+
+def run_main_loop(task: Coroutine):
     try:
-        asyncio.run(live_loop())
+        asyncio.run(task)
     except asyncio.CancelledError as ex:
         logging.warning("asyncio.CancelledError raised")
         logging.warning(ex)
@@ -127,6 +146,16 @@ def live():
     except KeyboardInterrupt:
         logging.info("Interrupted with ctrc-C")
         raise typer.Exit()
+
+
+@app.command()
+def live():
+    """
+    Start the Pingslurp slurping up new podpings from right now
+    """
+    logging.info("Starting to slurp")
+    setup_mongo_db()
+    run_main_loop(live_loop())
 
 
 @app.command()
@@ -137,41 +166,7 @@ def catchup():
     """
     logging.info("Catching up and continuing to slurp")
     setup_mongo_db()
-    try:
-        asyncio.run(catchup_loop())
-        # live()
-    except asyncio.CancelledError as ex:
-        logging.warning("asyncio.CancelledError raised")
-        logging.warning(ex)
-        raise typer.Exit()
-    except KeyboardInterrupt:
-        logging.info("Interrupted with ctrc-C")
-        raise typer.Exit()
-
-async def fillgaps_loop():
-    time_span = timedelta(seconds=360)
-    block_gaps, date_gaps = await find_date_gaps(time_span=time_span)
-    async with asyncio.TaskGroup() as tg:
-        for i, gap in enumerate(block_gaps[1:-1]):
-            message = f"GAP {i:3}"
-            tg.create_task(
-                keep_checking_hive_stream(
-                    start_block=gap[0] -10,
-                    end_block=gap[1] + 10,
-                    database_cache=10,
-                    message=message,
-                ),
-                name=message,
-            )
-
-
-
-        # catchup_task = tg.create_task(
-        #     history_loop(start_block=start_block, end_block=end_block)
-        # )
-
-    # print(date_gaps)
-
+    run_main_loop(catchup_loop())
 
 
 @app.command()
@@ -179,15 +174,8 @@ def fillgaps():
     """
     Finds gaps in current database and fills them.
     """
-    try:
-        asyncio.run(fillgaps_loop())
-    except asyncio.CancelledError as ex:
-        logging.warning("asyncio.CancelledError raised")
-        logging.warning(ex)
-        raise typer.Exit()
-    except KeyboardInterrupt:
-        logging.info("Interrupted with ctrc-C")
-        raise typer.Exit()
+    run_main_loop(fillgaps_loop())
+
 
 if __name__ == "__main__":
     app()
