@@ -89,6 +89,10 @@ async def insert_podping(db_client: AsyncIOMotorClient, pp: Podping) -> bool:
 
 
 async def block_at_postion(position=1, db: AsyncIOMotorCollection = None) -> int:
+    """
+    Returns the block at the given position in the database
+    0 is the first block, -1 is the last block.
+    """
     if db is None:
         db = get_mongo_db()
     sort_order = 1
@@ -102,7 +106,6 @@ async def block_at_postion(position=1, db: AsyncIOMotorCollection = None) -> int
             return int(doc["block_num"])
         i += 1
     return 0
-
 
 async def all_blocks(db: AsyncIOMotorCollection = None) -> List:
     """Return a set of all block_num currently in the database from lowest to

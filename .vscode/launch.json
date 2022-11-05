@@ -5,6 +5,22 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "scanhistory pingslurp",
+            "type": "python",
+            "request": "launch",
+            "envFile": "${workspaceFolder}/.env",
+            "program": "${workspaceFolder}/src/pingslurp.py",
+            "args": [
+                "scanhistory",
+                "--start-days",
+                "67",
+                "--bots",
+                "10"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true,
+        },
+        {
             "name": "scanrange pingslurp",
             "type": "python",
             "request": "launch",

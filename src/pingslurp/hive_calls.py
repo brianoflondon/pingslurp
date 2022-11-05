@@ -161,6 +161,7 @@ def get_block_datetime(block_num: int) -> datetime:
 def get_block_num(
     start_block: Optional[int] = None,
     time_delta: Optional[timedelta] = None,
+    date_time: Optional[datetime] = None,
 ) -> int:
     """Return the starting block"""
     if start_block:
@@ -170,6 +171,10 @@ def get_block_num(
         start_time = datetime.utcnow() - time_delta
         temp_blockchain = Blockchain()
         prev_block_num = temp_blockchain.get_estimated_block_num(start_time)
+        return prev_block_num
+    elif date_time:
+        temp_blockchain = Blockchain()
+        prev_block_num = temp_blockchain.get_estimated_block_num(date_time)
         return prev_block_num
 
 
@@ -243,7 +248,8 @@ async def keep_checking_hive_stream(
         counter = 0
         if block_num:
             logging.info(
-                f"{message}Starting to scan the chain at Block num: {block_num:,}"
+                f"{message}Starting to scan the chain at Block num: {block_num:,} | "
+                f"Start Date: {start_block_date}"
             )
         try:
             tasks = []

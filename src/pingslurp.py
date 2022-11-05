@@ -1,7 +1,7 @@
 import asyncio
 import logging
-from datetime import datetime, timedelta
 import sys
+from datetime import datetime, timedelta
 from timeit import default_timer as timer
 from typing import Coroutine, List, Optional, Tuple
 
@@ -120,11 +120,18 @@ async def catchup_loop(start_block: int, end_block: int):
     logging.info(catchup_task.result())
 
 
-async def fillgaps_loop():
+async def fillgaps_loop(block_gaps: List[Tuple[int, int]] = None):
     time_span = timedelta(seconds=360)
-    block_gaps, date_gaps = await find_date_gaps(time_span=time_span)
-    date_gaps = date_gaps[1:-1]
-    block_gaps = block_gaps[1:-1]
+    if not block_gaps:
+        block_gaps, date_gaps = await find_date_gaps(time_span=time_span)
+        date_gaps = date_gaps[1:-1]
+        block_gaps = block_gaps[1:-1]
+    else:
+        date_gaps = []
+        for start, end in block_gaps:
+            start_date = get_block_datetime(start)
+            end_date = get_block_datetime(end)
+            date_gaps.append((start_date, end_date))
     summary = []
     async with asyncio.TaskGroup() as tg:
         for i, gap in enumerate(block_gaps):
@@ -149,7 +156,10 @@ async def fillgaps_loop():
 
 def run_main_loop(task: Coroutine):
     try:
+        start_time = timer()
+        logging.info("Starting to scan")
         asyncio.run(task)
+        logging.info(f"Total time: {timer()-start_time:.2f}s")
     except asyncio.CancelledError as ex:
         logging.warning("asyncio.CancelledError raised")
         logging.warning(ex)
@@ -197,7 +207,9 @@ def scanrange(
     start_days: Optional[float] = typer.Option(
         5, help="Days back to start scanning from"
     ),
-    end_days: Optional[float] = typer.Option(0, help="Days backward to end scanning on"),
+    end_days: Optional[float] = typer.Option(
+        0, help="Days backward to end scanning on"
+    ),
 ):
     """
     Scans a range of blocks or dates
@@ -206,6 +218,37 @@ def scanrange(
     time_delta_end = timedelta(days=end_days)
     end_block = get_block_num(time_delta=time_delta_end)
     run_main_loop(history_loop(time_delta=time_delta, end_block=end_block))
+
+
+async def scan_history_loop(start_days, bots):
+    time_delta = timedelta(days=start_days)
+    start_block = get_block_num(time_delta=time_delta)
+    end_block = await block_at_postion(0) + 50
+    blocks_per_day = (24 * 60 * 60) / 3
+    total_blocks = end_block - start_block
+    block_gap = total_blocks / bots
+    block_gaps = []
+    while start_block < end_block:
+        block_gaps.append((int(start_block - 50), int(start_block + block_gap + 50)))
+        start_block += block_gap
+
+    print(block_gaps)
+    await fillgaps_loop(block_gaps=block_gaps)
+
+
+@app.command()
+def scanhistory(
+    start_days: Optional[float] = typer.Option(
+        90, help="Days back from now to start scanning from"
+    ),
+    bots: Optional[float] = typer.Option(5, help="Number of scanning bots to run"),
+):
+    """
+    Goes back to <start_days> and starts scanning from that point to the earliest point in
+    the database. Divides the scan ranges up into periods of 5 days.
+    """
+    # Block to end the scan at.
+    run_main_loop(scan_history_loop(start_days, bots))
 
 
 if __name__ == "__main__":
