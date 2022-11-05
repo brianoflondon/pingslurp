@@ -307,7 +307,7 @@ async def keep_checking_hive_stream(
                 f"Finished scanning at {block_num}. New Pings: {count_new} | "
                 f"Time to scan: {seconds_only(timedelta(seconds=duration))} | "
                 f"Block time: {seconds_only(block_duration)} | "
-                f"Speedup: {(block_duration.seconds / duration):.1f}"
+                f"Speedup: {(block_duration.total_seconds() / duration):.1f}"
             )
             logging.info(ret_message)
             return (
