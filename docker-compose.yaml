@@ -44,6 +44,27 @@ services:
       - pingslurp
       - hive-network
 
+  # pingslurp-fillgaps:
+  #   container_name: pingslurp-fillgaps
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #         max-file: "5"
+  #         max-size: "10m"
+  #   env_file:
+  #     - ".env"
+  #   # environment:
+  #   #   DB_CONNECTION: "mongodb://mongodb-pp:27017"
+  #   command: bash -c "python pingslurp.py fillgaps"
+  #   restart: unless-stopped
+  #   networks:
+  #     - pingslurp
+  #     - hive-network
+
+
 volumes:
   mongodb-pingslurp-data:
     driver: local
