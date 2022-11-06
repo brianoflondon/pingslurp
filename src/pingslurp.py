@@ -154,6 +154,22 @@ async def fillgaps_loop(block_gaps: List[Tuple[int, int]] = None):
         logging.info(found.result())
 
 
+async def scan_history_loop(start_days, bots):
+    time_delta = timedelta(days=start_days)
+    start_block = get_block_num(time_delta=time_delta)
+    end_block = await block_at_postion(0) + 50
+    blocks_per_day = (24 * 60 * 60) / 3
+    total_blocks = end_block - start_block
+    block_gap = total_blocks / bots
+    block_gaps = []
+    while start_block < end_block:
+        block_gaps.append((int(start_block - 50), int(start_block + block_gap + 50)))
+        start_block += block_gap
+
+    print(block_gaps)
+    await fillgaps_loop(block_gaps=block_gaps)
+
+
 def run_main_loop(task: Coroutine):
     try:
         start_time = timer()
@@ -218,22 +234,6 @@ def scanrange(
     time_delta_end = timedelta(days=end_days)
     end_block = get_block_num(time_delta=time_delta_end)
     run_main_loop(history_loop(time_delta=time_delta, end_block=end_block))
-
-
-async def scan_history_loop(start_days, bots):
-    time_delta = timedelta(days=start_days)
-    start_block = get_block_num(time_delta=time_delta)
-    end_block = await block_at_postion(0) + 50
-    blocks_per_day = (24 * 60 * 60) / 3
-    total_blocks = end_block - start_block
-    block_gap = total_blocks / bots
-    block_gaps = []
-    while start_block < end_block:
-        block_gaps.append((int(start_block - 50), int(start_block + block_gap + 50)))
-        start_block += block_gap
-
-    print(block_gaps)
-    await fillgaps_loop(block_gaps=block_gaps)
 
 
 @app.command()

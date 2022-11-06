@@ -4,7 +4,7 @@ from typing import Any, List, Literal
 
 from pydantic import BaseModel, validator
 
-mediums = {
+PodpingMediums = {
     "mixed",
     "podcast",
     "music",
@@ -21,7 +21,7 @@ mediums = {
     "newsletterL",
     "blogL",
 }
-reasons = {"update", "live", "liveEnd", "newIRI"}
+PodpingReasons = {"update", "live", "liveEnd", "newIRI"}
 
 
 def utf8len(s):
@@ -91,15 +91,15 @@ class Podping(HiveTrx, PodpingMeta, BaseModel):
     @validator("medium")
     def medium_exists(cls, v):
         """Make sure the given medium matches what's available"""
-        if v not in mediums:
-            raise ValueError(f"medium must be one of {str(', '.join(mediums))}")
+        if v not in PodpingMediums:
+            raise ValueError(f"medium must be one of {str(', '.join(PodpingMediums))}")
         return v
 
     @validator("reason")
     def reason_exists(cls, v):
         """Make sure the given reason matches what's available"""
-        if v not in reasons:
-            raise ValueError(f"reason must be one of {str(', '.join(reasons))}")
+        if v not in PodpingReasons:
+            raise ValueError(f"reason must be one of {str(', '.join(PodpingReasons))}")
         return v
 
     @validator("iris")
