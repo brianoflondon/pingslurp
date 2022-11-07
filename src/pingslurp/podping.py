@@ -1,27 +1,27 @@
 import json
 from datetime import datetime
 from typing import Any, List, Literal
-
+from pingslurp.podping_schemas import PodpingMediums, PodpingReasons
 from pydantic import BaseModel, validator
 
-PodpingMediums = {
-    "mixed",
-    "podcast",
-    "music",
-    "video",
-    "film",
-    "audiobook",
-    "newsletter",
-    "blog",
-    "podcastL",
-    "musicL",
-    "videoL",
-    "filmL",
-    "audiobookL",
-    "newsletterL",
-    "blogL",
-}
-PodpingReasons = {"update", "live", "liveEnd", "newIRI"}
+# PodpingMediums = {
+#     "mixed",
+#     "podcast",
+#     "music",
+#     "video",
+#     "film",
+#     "audiobook",
+#     "newsletter",
+#     "blog",
+#     "podcastL",
+#     "musicL",
+#     "videoL",
+#     "filmL",
+#     "audiobookL",
+#     "newsletterL",
+#     "blogL",
+# }
+# PodpingReasons = {"update", "live", "liveEnd", "newIRI"}
 
 
 def utf8len(s):
@@ -47,6 +47,7 @@ class PodpingMeta(BaseModel):
     hive: str = None
     v: str = None
     stored_meta: bool = False
+    op_id: int = 1       # Counter for multiple operations in one trx_id
 
     def __init__(__pydantic_self__, **data: Any) -> None:
         if data.get("id").startswith("pplt_"):
@@ -66,8 +67,8 @@ class Podping(HiveTrx, PodpingMeta, BaseModel):
     """Dataclass for on-chain podping schema"""
 
     version: Literal["1.0"] = "1.0"
-    medium: str = ""
-    reason: str = ""
+    medium: PodpingMediums = None
+    reason: PodpingReasons = None
     iris: List[str] = []
 
     def __init__(__pydantic_self__, **data: Any) -> None:
@@ -88,19 +89,19 @@ class Podping(HiveTrx, PodpingMeta, BaseModel):
             podping_meta["num_iris"] = len(iris)
         super().__init__(**custom_json, **hive_trx, **podping_meta)
 
-    @validator("medium")
-    def medium_exists(cls, v):
-        """Make sure the given medium matches what's available"""
-        if v not in PodpingMediums:
-            raise ValueError(f"medium must be one of {str(', '.join(PodpingMediums))}")
-        return v
+    # @validator("medium")
+    # def medium_exists(cls, v):
+    #     """Make sure the given medium matches what's available"""
+    #     if v not in PodpingMediums:
+    #         raise ValueError(f"medium must be one of {str(', '.join(PodpingMediums))}")
+    #     return v
 
-    @validator("reason")
-    def reason_exists(cls, v):
-        """Make sure the given reason matches what's available"""
-        if v not in PodpingReasons:
-            raise ValueError(f"reason must be one of {str(', '.join(PodpingReasons))}")
-        return v
+    # @validator("reason")
+    # def reason_exists(cls, v):
+    #     """Make sure the given reason matches what's available"""
+    #     if v not in PodpingReasons:
+    #         raise ValueError(f"reason must be one of {str(', '.join(PodpingReasons))}")
+    #     return v
 
     @validator("iris")
     def iris_at_least_one_element(cls, v):
@@ -111,11 +112,14 @@ class Podping(HiveTrx, PodpingMeta, BaseModel):
         return v
 
     def db_format(self) -> dict:
-        return self.dict(exclude_unset=True)
+        ans = self.dict(exclude_unset=True)
+        ans['op_id'] = self.op_id
+        return ans
 
     def db_format_meta(self) -> dict:
         db_meta = self.metadata
         db_meta["timestamp"] = self.timestamp
         db_meta["trx_id"] = self.trx_id
+        db_meta["op_id"] = self.op_id
         db_meta["block_num"] = self.block_num
         return db_meta

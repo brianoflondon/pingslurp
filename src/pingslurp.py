@@ -53,7 +53,7 @@ async def find_date_gaps(
 async def setup_check_database():
     """Check if we have a database and return stuff"""
     setup_mongo_db()
-    print(f"Using database at {Config.DB_CONNECTION}")
+    logging.info(f"Using database at {Config.DB_CONNECTION}")
     empty = await is_empty(all_blocks_it())
     if empty:
         print("Databse is empty")
@@ -107,7 +107,7 @@ async def live_loop():
     logging.info(live_task.result())
 
 
-async def catchup_loop(start_block: int, end_block: int):
+async def catchup_loop(start_block: int = None, end_block: int = None):
     if not start_block:
         start_block = await block_at_postion(0) - int(7200 / 3)
     if not end_block:
@@ -175,14 +175,15 @@ def run_main_loop(task: Coroutine):
         start_time = timer()
         logging.info("Starting to scan")
         asyncio.run(task)
-        logging.info(f"Total time: {timer()-start_time:.2f}s")
-    except asyncio.CancelledError as ex:
+    except* asyncio.CancelledError as ex:
         logging.warning("asyncio.CancelledError raised")
         logging.warning(ex)
         raise typer.Exit()
-    except KeyboardInterrupt:
+    except* KeyboardInterrupt:
         logging.info("Interrupted with ctrc-C")
         raise typer.Exit()
+    finally:
+        logging.info(f"Total time: {timer()-start_time:.2f}s")
 
 
 @app.command()
@@ -235,6 +236,18 @@ def scanrange(
     end_block = get_block_num(time_delta=time_delta_end)
     run_main_loop(history_loop(time_delta=time_delta, end_block=end_block))
 
+@app.command()
+def scanblocks(
+    start_block: Optional[int] = typer.Option(None, help="Starting block"),
+    end_block: Optional[int]= typer.Option(None, help="Ending block")
+):
+    """
+    Scans a range of blocks
+    """
+    run_main_loop(history_loop(start_block=start_block, end_block=end_block))
+
+
+
 
 @app.command()
 def scanhistory(
@@ -253,4 +266,4 @@ def scanhistory(
 
 if __name__ == "__main__":
     app()
-    # typer.run(main)
+# typer.run(main)

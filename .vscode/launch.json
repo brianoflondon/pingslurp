@@ -67,13 +67,25 @@
             "justMyCode": true,
         },
         {
-            "name": "pingslurp check",
+            "name": "check pingslurp",
             "type": "python",
             "request": "launch",
             "envFile": "${workspaceFolder}/.env",
             "program": "${workspaceFolder}/src/pingslurp.py",
             "args": [
                 "check"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true,
+        },
+        {
+            "name": "scanblocks pingslurp",
+            "type": "python",
+            "request": "launch",
+            "envFile": "${workspaceFolder}/.env",
+            "program": "${workspaceFolder}/src/pingslurp.py",
+            "args": [
+                "scanblocks", "--start-block", "69447860", "--end-block", "69447861"
             ],
             "console": "integratedTerminal",
             "justMyCode": true,

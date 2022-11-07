@@ -16,6 +16,6 @@ class Config:
     load_dotenv()
 
     DB_CONNECTION = os.getenv("DB_CONNECTION")
-    ROOT_DB_NAME = "pingslurp"
+    ROOT_DB_NAME = os.getenv("ROOT_DB_NAME")
     COLLECTION_NAME = "all_podpings"
     COLLECTION_NAME_META = "meta_ts"

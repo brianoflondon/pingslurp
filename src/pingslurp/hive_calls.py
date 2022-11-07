@@ -214,7 +214,7 @@ async def keep_checking_hive_stream(
     time_delta: Optional[timedelta] = None,
     end_block: Optional[int] = sys.maxsize,
     message: Optional[str] = "",
-    database_cache: Optional[int] = 10,
+    database_cache: Optional[int] = 0,
 ) -> Tuple[int, str]:
     """
     Keeps watching the Hive stream either live or between block limits.
@@ -251,6 +251,8 @@ async def keep_checking_hive_stream(
                 f"{message}Starting to scan the chain at Block num: {block_num:,} | "
                 f"Start Date: {start_block_date}"
             )
+        prev_trx_id = ""
+        op_id = 1
         try:
             tasks = []
             async for post in stream:
@@ -267,6 +269,12 @@ async def keep_checking_hive_stream(
                 ):
                     try:
                         podping = Podping.parse_obj(post)
+                        if podping.trx_id == prev_trx_id:
+                            op_id += 1
+                            podping.op_id = op_id
+                        else:
+                            op_id = 1
+                        prev_trx_id = podping.trx_id
                         tasks.append(
                             insert_and_report_podping(client, podping, message)
                         )
@@ -281,7 +289,6 @@ async def keep_checking_hive_stream(
 
 
         except (httpx.ReadTimeout, Exception) as ex:
-            await asyncio.gather(*tasks)
             asyncio.create_task(
                 send_notification_via_api(
                     notify="pingslurp: Error watching Hive", alert_level=5
@@ -294,30 +301,35 @@ async def keep_checking_hive_stream(
             await asyncio.sleep(10)
             prev_block_num -= 20
         except asyncio.CancelledError as ex:
-            await asyncio.gather(*tasks)
             logging.warning(
                 "asyncio.CancelledError raised in keep_checking_hive_stream"
             )
             logging.warning(f"{ex} {ex.__class__}")
-            raise
+            raise ex
         except KeyboardInterrupt:
-            await asyncio.gather(*tasks)
-            raise
+            raise KeyboardInterrupt
         finally:
-            await asyncio.gather(*tasks)
+            try:
+                new_pings = await asyncio.gather(*tasks)
+                count_new += new_pings.count(True)
+                tasks = []
+            except Exception as ex:
+                logging.warning(ex)
             duration = timer() -timer_start
+            if end_block == sys.maxsize:
+                end_block = prev_block_num
             end_block_date = get_block_datetime(end_block)
             block_duration = end_block_date - start_block_date
             ret_message = (
                 f"{message:>8}Scanned from {start_block} to {end_block}. "
-                f"Finished scanning at {block_num}. New Pings: {count_new} | "
+                f"Finished scanning at {prev_block_num}. New Pings: {count_new} | "
                 f"Time to scan: {seconds_only(timedelta(seconds=duration))} | "
                 f"Block time: {seconds_only(block_duration)} | "
                 f"Speedup: {(block_duration.total_seconds() / duration):.1f}"
             )
             logging.info(ret_message)
             return (
-                block_num,
+                prev_block_num,
                 ret_message,
             )
 

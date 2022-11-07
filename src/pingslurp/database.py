@@ -8,8 +8,12 @@ from typing import AsyncIterator, Generator, List, Set, Tuple
 
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
-from pymongo import MongoClient
-from pymongo.errors import DuplicateKeyError, ServerSelectionTimeoutError
+from pymongo import ASCENDING, DESCENDING, MongoClient
+from pymongo.errors import (
+    DuplicateKeyError,
+    OperationFailure,
+    ServerSelectionTimeoutError,
+)
 
 from pingslurp.config import Config
 from pingslurp.podping import Podping
@@ -36,8 +40,18 @@ def setup_mongo_db() -> None:
         logging.info(f"DB: {Config.COLLECTION_NAME} already exists in database")
 
     # Check/create indexes
-    client[Config.COLLECTION_NAME].create_index("trx_id", name="trx_id", unique=True)
-
+    client[Config.COLLECTION_NAME].create_index(
+        [("trx_id", ASCENDING), ("op_id", ASCENDING)],
+        name="trx_id_1_op_id_1",
+        unique=True,
+    )
+    client[Config.COLLECTION_NAME].create_index([("block_num", ASCENDING)])
+    client[Config.COLLECTION_NAME].create_index([("timestamp", DESCENDING)])
+    client[Config.COLLECTION_NAME].create_index([("iris", ASCENDING)])
+    try:
+        client[Config.COLLECTION_NAME].drop_index(index_or_name="trx_id")
+    except OperationFailure as ex:
+        pass
     if not Config.COLLECTION_NAME_META in collection_names:
         # Create timeseries collection:
         client.create_collection(
@@ -66,21 +80,24 @@ async def insert_podping(db_client: AsyncIOMotorClient, pp: Podping) -> bool:
             ans2 = await db_client[Config.COLLECTION_NAME_META].insert_one(data_meta)
             new_value = {"$set": {"stored_meta": True}}
             ans3 = await db_client[Config.COLLECTION_NAME].update_one(
-                {"trx_id": pp.trx_id}, new_value
+                {"trx_id": pp.trx_id, "op_id": pp.op_id}, new_value
             )
         except Exception as ex:
             logging.error(ex)
     except DuplicateKeyError as ex:
-        doc = await db_client[Config.COLLECTION_NAME].find_one({"trx_id": pp.trx_id})
-        if not doc.get("stored_meta"):
+        logging.info(f"Duplicate Key: {pp.trx_id} {pp.op_id}")
+        doc = await db_client[Config.COLLECTION_NAME].find_one(
+            {"trx_id": pp.trx_id, "op_id": pp.op_id}
+        )
+        if doc and not doc.get("stored_meta"):
             ans2 = await db_client[Config.COLLECTION_NAME_META].insert_one(data_meta)
             new_value = {"$set": {"stored_meta": True}}
             ans3 = await db_client[Config.COLLECTION_NAME].update_one(
                 {"trx_id": pp.trx_id}, new_value
             )
-            logging.debug(f"Metadata updated for        {pp.trx_id}")
+            logging.info(f"Metadata updated for        {pp.trx_id}")
         else:
-            logging.debug(f"Metadata already exists for {pp.trx_id}")
+            logging.info(f"Metadata already exists for {pp.trx_id}")
         return False
     return True
 
@@ -99,7 +116,9 @@ async def block_at_postion(position=1, db: AsyncIOMotorCollection = None) -> int
     if position < 0:
         sort_order = -1
         position = abs(position) - 1
-    cursor = db.find({}, {"block_num": 1}).sort([("block_num", sort_order)])
+    cursor = db.find({}, {"block_num": 1}, allow_disk_use=True).sort(
+        [("block_num", sort_order)]
+    )
     i = 0
     async for doc in cursor:
         if i == position:
@@ -107,12 +126,13 @@ async def block_at_postion(position=1, db: AsyncIOMotorCollection = None) -> int
         i += 1
     return 0
 
+
 async def all_blocks(db: AsyncIOMotorCollection = None) -> List:
     """Return a set of all block_num currently in the database from lowest to
     highest"""
     if db is None:
         db = get_mongo_db()
-    cursor = db.find({}, {"block_num": 1}).sort([("block_num", 1)])
+    cursor = db.find({}, {"block_num": 1}, allow_disk_use=True).sort([("block_num", 1)])
     ans = list()
     async for doc in cursor:
         ans.append(doc["block_num"])
@@ -124,7 +144,7 @@ async def all_blocks_it(db: AsyncIOMotorCollection = None) -> AsyncIterator[int]
     highest"""
     if db is None:
         db = get_mongo_db()
-    cursor = db.find({}, {"block_num": 1}).sort([("block_num", 1)])
+    cursor = db.find({}, {"block_num": 1}, allow_disk_use=True).sort([("block_num", 1)])
     async for doc in cursor:
         yield doc["block_num"]
 
