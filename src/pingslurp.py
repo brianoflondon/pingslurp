@@ -97,7 +97,7 @@ async def history_loop(
 
 
 async def live_loop():
-    start_block = get_current_hive_block_num() - int(600 / 3)
+    start_block = await block_at_postion(-1) - 600
     async with asyncio.TaskGroup() as tg:
         live_task = tg.create_task(
             keep_checking_hive_stream(
@@ -265,5 +265,6 @@ def scanhistory(
 
 
 if __name__ == "__main__":
+    setup_mongo_db()
     app()
 # typer.run(main)

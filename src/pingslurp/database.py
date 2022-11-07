@@ -31,6 +31,8 @@ def get_mongo_client() -> AsyncIOMotorClient:
 def setup_mongo_db() -> None:
     """Check if the DB exists and set it up if needed. Returns number of new DBs"""
     count = 0
+    # db.all_podpings.updateMany({op_id: null}, { $set: { op_id: 1 }})
+    # this command run in mongoshell to add op_id to all records 2022-11-07
     client = MongoClient(Config.DB_CONNECTION)[Config.ROOT_DB_NAME]
     collection_names = client.list_collection_names()
     if not Config.COLLECTION_NAME in collection_names:
@@ -85,7 +87,7 @@ async def insert_podping(db_client: AsyncIOMotorClient, pp: Podping) -> bool:
         except Exception as ex:
             logging.error(ex)
     except DuplicateKeyError as ex:
-        logging.info(f"Duplicate Key: {pp.trx_id} {pp.op_id}")
+        logging.debug(f"Duplicate Key: {pp.trx_id} {pp.op_id}")
         doc = await db_client[Config.COLLECTION_NAME].find_one(
             {"trx_id": pp.trx_id, "op_id": pp.op_id}
         )
@@ -95,9 +97,9 @@ async def insert_podping(db_client: AsyncIOMotorClient, pp: Podping) -> bool:
             ans3 = await db_client[Config.COLLECTION_NAME].update_one(
                 {"trx_id": pp.trx_id}, new_value
             )
-            logging.info(f"Metadata updated for        {pp.trx_id}")
+            logging.debug(f"Metadata updated for        {pp.trx_id}")
         else:
-            logging.info(f"Metadata already exists for {pp.trx_id}")
+            logging.debug(f"Metadata already exists for {pp.trx_id}")
         return False
     return True
 
