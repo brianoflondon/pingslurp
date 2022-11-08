@@ -50,7 +50,7 @@ MAIN_NODES: List[str] = [
     "https://api.deathwing.me/",
 ]
 
-MAX_HIVE_BATCH_SIZE = 50
+MAX_HIVE_BATCH_SIZE = 25
 
 OP_NAMES = ["custom_json"]
 HIVE_STATUS_OUTPUT_BLOCKS = 50
@@ -252,7 +252,7 @@ async def keep_checking_hive_stream(
         counter = 0
         if block_num:
             logging.info(
-                f"{message}Starting to scan the chain at Block num: {block_num:,} | "
+                f"{message:>8}Starting to scan the chain at Block num: {block_num:,} | "
                 f"Start Date: {start_block_date}"
             )
         prev_trx_id = ""
