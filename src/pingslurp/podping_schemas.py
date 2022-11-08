@@ -24,3 +24,8 @@ class PodpingReasons(str, Enum):
     live = "live"
     liveEnd = "liveEnd"
     newIRI = "newIRI"
+
+class PodpingVersions(str, Enum):
+    v1_0 = "1.0"
+    v1_1 = "1.1"
+    

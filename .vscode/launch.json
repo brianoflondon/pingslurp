@@ -85,7 +85,7 @@
             "envFile": "${workspaceFolder}/.env",
             "program": "${workspaceFolder}/src/pingslurp.py",
             "args": [
-                "scanblocks", "--start-block", "69447860", "--end-block", "69447861"
+                "scanblocks", "--start-block", " 69_474_499", "--end-block", "69_476_313"
             ],
             "console": "integratedTerminal",
             "justMyCode": true,

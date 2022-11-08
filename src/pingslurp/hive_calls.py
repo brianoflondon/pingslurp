@@ -3,7 +3,6 @@ import json
 import logging
 import sys
 from datetime import datetime, timedelta
-from random import shuffle
 from timeit import default_timer as timer
 from typing import List, Optional, Set, Tuple
 
@@ -17,8 +16,11 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import ValidationError
 
 from pingslurp.async_wrapper import sync_to_async_iterable
+from pingslurp.config import StateOptions
 from pingslurp.database import get_mongo_client, insert_podping
 from pingslurp.podping import Podping
+
+state_options = StateOptions()
 
 
 class HiveConnectionError(Exception):
@@ -47,7 +49,8 @@ MAIN_NODES: List[str] = [
     "https://api.hive.blog/",
     "https://api.deathwing.me/",
 ]
-# MAIN_NODES: List[str] = ["http://hive-witness:8091/"]
+
+MAX_HIVE_BATCH_SIZE = 50
 
 OP_NAMES = ["custom_json"]
 HIVE_STATUS_OUTPUT_BLOCKS = 50
@@ -193,13 +196,13 @@ def output_status(
         blocknum_change = True
         prev_block_num = block_num
         if counter > HIVE_STATUS_OUTPUT_BLOCKS - 1:
-            hive_string = f" | {hive.data.get('last_node')}" if hive else ""
+            hive_string = f"| {hive.data.get('last_node')}" if hive else ""
             time_delta = seconds_only(
                 datetime.utcnow() - hive_post["timestamp"].replace(tzinfo=None)
             )
             logging.info(
                 f"{message:>8}Block: {block_num:,} | "
-                f"Timedelta: {time_delta} | {hive_string}"
+                f"Timedelta: {time_delta}{hive_string}"
             )
             if time_delta < timedelta(seconds=0):
                 logging.warning(
@@ -215,6 +218,7 @@ async def keep_checking_hive_stream(
     end_block: Optional[int] = sys.maxsize,
     message: Optional[str] = "",
     database_cache: Optional[int] = 0,
+    state_options: StateOptions = state_options,
 ) -> Tuple[int, str]:
     """
     Keeps watching the Hive stream either live or between block limits.
@@ -241,7 +245,7 @@ async def keep_checking_hive_stream(
                 opNames=OP_NAMES,
                 raw_ops=False,
                 start=prev_block_num,
-                max_batch_size=25,
+                max_batch_size=MAX_HIVE_BATCH_SIZE,
             )
         )
         block_num = prev_block_num
@@ -276,17 +280,18 @@ async def keep_checking_hive_stream(
                             op_id = 1
                         prev_trx_id = podping.trx_id
                         tasks.append(
-                            insert_and_report_podping(client, podping, message)
+                            insert_and_report_podping(client, podping, message, state_options)
                         )
                     except ValidationError as ex:
-                        logging.error("ValidationError")
+                        logging.error(
+                            f"ValidationError | {post.get('trx_id')} | {post.get('block_num')}"
+                        )
                         logging.error(json.dumps(post, indent=2, default=str))
                         logging.error([post["json"]])
                         logging.error(ex)
 
                 if post["block_num"] > end_block:
                     break
-
 
         except (httpx.ReadTimeout, Exception) as ex:
             asyncio.create_task(
@@ -314,8 +319,9 @@ async def keep_checking_hive_stream(
                 count_new += new_pings.count(True)
                 tasks = []
             except Exception as ex:
+                logging.exception(ex)
                 logging.warning(ex)
-            duration = timer() -timer_start
+            duration = timer() - timer_start
             if end_block == sys.maxsize:
                 end_block = prev_block_num
             end_block_date = get_block_datetime(end_block)
@@ -335,15 +341,20 @@ async def keep_checking_hive_stream(
 
 
 async def insert_and_report_podping(
-    client: AsyncIOMotorClient, podping: Podping, message: str
+    client: AsyncIOMotorClient,
+    podping: Podping,
+    message: str,
+    state_options: StateOptions,
 ) -> bool:
     if await insert_podping(client, podping):
-        logging.info(
-            f"{message:>8}New       podping: {podping.trx_id} | {podping.required_posting_auths} | {podping.block_num}"
-        )
+        if state_options.verbose:
+            logging.info(
+                f"{message:>8}New       podping: {podping.trx_id} | {podping.required_posting_auths} | {podping.block_num}"
+            )
         return True
     else:
-        logging.info(
-            f"{message:>8}Duplicate podping: {podping.trx_id} | {podping.required_posting_auths} | {podping.block_num}"
-        )
+        if state_options.verbose:
+            logging.info(
+                f"{message:>8}Duplicate podping: {podping.trx_id} | {podping.required_posting_auths} | {podping.block_num}"
+            )
         return False

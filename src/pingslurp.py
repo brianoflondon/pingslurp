@@ -9,7 +9,7 @@ import typer
 from motor.motor_asyncio import AsyncIOMotorCollection
 from rich import print
 
-from pingslurp.config import Config
+from pingslurp.config import Config, StateOptions
 from pingslurp.database import (
     all_blocks,
     all_blocks_it,
@@ -29,6 +29,9 @@ from pingslurp.hive_calls import (
 from pingslurp.podping import Podping
 
 app = typer.Typer(help="Slurping up Podpings with Pingslurp")
+DATABASE_CACHE = 100
+
+state_options = StateOptions()
 
 
 async def find_date_gaps(
@@ -88,8 +91,9 @@ async def history_loop(
                 start_block=start_block,
                 end_block=end_block,
                 time_delta=time_delta,
-                database_cache=10,
+                database_cache=DATABASE_CACHE,
                 message="HIST",
+                state_options=state_options,
             ),
             name="history_task",
         )
@@ -101,23 +105,34 @@ async def live_loop():
     async with asyncio.TaskGroup() as tg:
         live_task = tg.create_task(
             keep_checking_hive_stream(
-                start_block=start_block, database_cache=0, message="LIVE"
+                start_block=start_block,
+                database_cache=0,
+                message="LIVE",
+                state_options=state_options,
             )
         )
     logging.info(live_task.result())
 
 
-async def catchup_loop(start_block: int = None, end_block: int = None):
-    if not start_block:
-        start_block = await block_at_postion(0) - int(7200 / 3)
-    if not end_block:
-        end_block = get_current_hive_block_num()
+async def catchup_loop():
+    start_block = await block_at_postion(-1) - int(3600 / 3)
+    end_block = get_current_hive_block_num()
+    live_start_block = await block_at_postion(-1)
 
     async with asyncio.TaskGroup() as tg:
         catchup_task = tg.create_task(
             history_loop(start_block=start_block, end_block=end_block)
         )
+        live_task = tg.create_task(
+            keep_checking_hive_stream(
+                start_block=live_start_block,
+                database_cache=0,
+                message="LIVE",
+                state_options=state_options,
+            )
+        )
     logging.info(catchup_task.result())
+    logging.info(live_task.result())
 
 
 async def fillgaps_loop(block_gaps: List[Tuple[int, int]] = None):
@@ -144,8 +159,9 @@ async def fillgaps_loop(block_gaps: List[Tuple[int, int]] = None):
                 keep_checking_hive_stream(
                     start_block=gap[0] - 10,
                     end_block=gap[1] + 10,
-                    database_cache=10,
+                    database_cache=DATABASE_CACHE,
                     message=message,
+                    state_options=state_options,
                 ),
                 name=message,
             )
@@ -184,6 +200,16 @@ def run_main_loop(task: Coroutine):
         raise typer.Exit()
     finally:
         logging.info(f"Total time: {timer()-start_time:.2f}s")
+
+
+@app.callback()
+def main(verbose: bool = True):
+    """
+    Manage users in the awesome CLI app.
+    """
+    if not verbose:
+        logging.info("Will write verbose output")
+        state_options.verbose = False
 
 
 @app.command()
@@ -236,17 +262,16 @@ def scanrange(
     end_block = get_block_num(time_delta=time_delta_end)
     run_main_loop(history_loop(time_delta=time_delta, end_block=end_block))
 
+
 @app.command()
 def scanblocks(
     start_block: Optional[int] = typer.Option(None, help="Starting block"),
-    end_block: Optional[int]= typer.Option(None, help="Ending block")
+    end_block: Optional[int] = typer.Option(None, help="Ending block"),
 ):
     """
     Scans a range of blocks
     """
     run_main_loop(history_loop(start_block=start_block, end_block=end_block))
-
-
 
 
 @app.command()

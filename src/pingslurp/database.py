@@ -1,19 +1,11 @@
-import asyncio
-import itertools
 import logging
-import os
 from datetime import timedelta
-from itertools import groupby
-from typing import AsyncIterator, Generator, List, Set, Tuple
+from typing import AsyncIterator, List, Set, Tuple
 
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
 from pymongo import ASCENDING, DESCENDING, MongoClient
-from pymongo.errors import (
-    DuplicateKeyError,
-    OperationFailure,
-    ServerSelectionTimeoutError,
-)
+from pymongo.errors import DuplicateKeyError, OperationFailure
 
 from pingslurp.config import Config
 from pingslurp.podping import Podping
@@ -101,6 +93,7 @@ async def insert_podping(db_client: AsyncIOMotorClient, pp: Podping) -> bool:
         else:
             logging.debug(f"Metadata already exists for {pp.trx_id}")
         return False
+
     return True
 
 
