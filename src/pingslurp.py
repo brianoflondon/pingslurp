@@ -9,9 +9,9 @@ import typer
 from motor.motor_asyncio import AsyncIOMotorCollection
 from rich import print
 
+from pingslurp import __version__
 from pingslurp.config import Config, StateOptions
 from pingslurp.database import (
-    all_blocks,
     all_blocks_it,
     block_at_postion,
     find_big_gaps,
@@ -20,13 +20,11 @@ from pingslurp.database import (
     setup_mongo_db,
 )
 from pingslurp.hive_calls import (
-    HiveConnectionError,
     get_block_datetime,
     get_block_num,
     get_current_hive_block_num,
     keep_checking_hive_stream,
 )
-from pingslurp.podping import Podping
 
 app = typer.Typer(help="Slurping up Podpings with Pingslurp")
 DATABASE_CACHE = 100
@@ -290,6 +288,7 @@ def scanhistory(
 
 
 if __name__ == "__main__":
+    logging.info(f"Starting up Pingslurp version {__version__}")
     setup_mongo_db()
     app()
 # typer.run(main)

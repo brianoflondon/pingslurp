@@ -18,7 +18,7 @@ from pydantic import ValidationError
 from pingslurp.async_wrapper import sync_to_async_iterable
 from pingslurp.config import StateOptions
 from pingslurp.database import get_mongo_client, insert_podping
-from pingslurp.podping import Podping
+from pingslurp.podping_schemas import Podping
 
 state_options = StateOptions()
 

@@ -8,7 +8,7 @@ from pymongo import ASCENDING, DESCENDING, MongoClient
 from pymongo.errors import DuplicateKeyError, OperationFailure
 
 from pingslurp.config import Config
-from pingslurp.podping import Podping
+from pingslurp.podping_schemas import Podping
 
 
 def get_mongo_db(collection: str = "all_podpings") -> AsyncIOMotorCollection:
