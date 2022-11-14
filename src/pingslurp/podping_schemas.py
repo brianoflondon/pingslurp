@@ -1,9 +1,10 @@
 import json
+import logging
+import re
 from datetime import datetime
 from enum import Enum, auto
-import logging
 from typing import Any, List, Literal, Optional
-import re
+
 from pydantic import BaseModel, validator
 
 
@@ -82,6 +83,7 @@ known_hosts: dict[str, str] = {
     "RSS.com": r".*rss.com\/.*",
     "Transistor": r".*transistor.fm\/.*",
     "Captivate": r".*captivate.fm\/.*",
+    "Podserve": r".*podserve.fm\/.*",
     "3speak": r".*3speak.tv\/.*",
     "example.com": r".*example.com\/.*",
     # "Other": r".*",
@@ -89,7 +91,7 @@ known_hosts: dict[str, str] = {
 
 all_hosts = ""
 for host in known_hosts.values():
-    all_hosts += (f"({host})|")
+    all_hosts += f"({host})|"
 all_hosts = all_hosts[:-1]
 
 
@@ -129,10 +131,10 @@ class Podping(HiveTrx, PodpingMeta, BaseModel):
                 podping_meta["json_size"] = utf8len(data.get("json"))
                 if iris := custom_json.get("iris"):
                     podping_meta["num_iris"] = len(iris)
-                    custom_json['iris'] = [PodpingIri(iri) for iri in iris]
+                    custom_json["iris"] = [PodpingIri(iri) for iri in iris]
                 super().__init__(**custom_json, **podping_meta)
-            elif iris := data.get('iris'):
-                data['iris'] = [PodpingIri(iri) for iri in iris]
+            elif iris := data.get("iris"):
+                data["iris"] = [PodpingIri(iri) for iri in iris]
                 super().__init__(**data)
             else:
                 super().__init__(**data)
@@ -161,14 +163,11 @@ class Podping(HiveTrx, PodpingMeta, BaseModel):
         db_meta["block_num"] = self.block_num
         return db_meta
 
-
     def db_format_hosts_ts(self) -> List[dict]:
         ans = []
         for iri in self.iris:
             db = {
-                "metadata":{
-                    "host": iri.host
-                },
+                "metadata": {"host": iri.host},
                 "timestamp": self.timestamp,
                 "iri": iri,
                 "trx_id": self.trx_id,
