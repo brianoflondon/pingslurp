@@ -19,6 +19,7 @@ class Config:
     ROOT_DB_NAME = os.getenv("ROOT_DB_NAME")
     COLLECTION_NAME = "all_podpings"
     COLLECTION_NAME_META = "meta_ts"
+    COLLECTION_NAME_HOSTS = "hosts_ts"
 
 class StateOptions():
     verbose: bool = True

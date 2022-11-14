@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 from datetime import timedelta
 from typing import AsyncIterator, List, Set, Tuple
 
@@ -59,45 +60,110 @@ def setup_mongo_db() -> None:
         logging.info(f"DB: {Config.COLLECTION_NAME_META} created in database")
     else:
         logging.info(f"DB: {Config.COLLECTION_NAME_META} already exists in database")
+    if not Config.COLLECTION_NAME_HOSTS in collection_names:
+        # Create timeseries collection:
+        client.create_collection(
+            Config.COLLECTION_NAME_HOSTS,
+            timeseries={
+                "timeField": "timestamp",
+                "metaField": "metadata",
+                "granularity": "seconds",
+            },
+        )
+        logging.info(f"DB: {Config.COLLECTION_NAME_HOSTS} created in database")
+    else:
+        logging.info(f"DB: {Config.COLLECTION_NAME_HOSTS} already exists in database")
+
     return
 
 
-async def insert_podping(db_client: AsyncIOMotorClient, pp: Podping) -> bool:
+@dataclass
+class PodpingDatabaseResult:
+    podping: bool = False
+    meta: bool = False
+    hosts_ts: bool = False
+
+    @property
+    def insert_result(self) -> str:
+        p_txt = "NEW Podping" if self.podping else "DUPLICATE Podping"
+        m_txt = "Yes" if self.meta else "No"
+        h_txt = "Yes" if self.hosts_ts else "No"
+
+        return (
+            f"{p_txt:<18} | "
+            f"New Metadata {m_txt:<5} | "
+            f"New Hosts {h_txt:<5}"
+        )
+
+
+async def insert_podping(
+    db_client: AsyncIOMotorClient, pp: Podping
+) -> PodpingDatabaseResult:
     """Put a podping in the database, returns True if new podping was inserted
     False if duplicate."""
     data = pp.db_format()
-    data_meta = pp.db_format_meta()
+    pdr = PodpingDatabaseResult()
     try:
         ans = await db_client[Config.COLLECTION_NAME].insert_one(data)
+        pdr.podping = True
         # if we have a new podping, store its metadata
         try:
-            ans2 = await db_client[Config.COLLECTION_NAME_META].insert_one(data_meta)
-            new_value = {"$set": {"stored_meta": True}}
-            ans3 = await db_client[Config.COLLECTION_NAME].update_one(
+            data_meta = pp.db_format_meta()
+            data_hosts_ts = pp.db_format_hosts_ts()
+            meta_ts_ins = await db_client[Config.COLLECTION_NAME_META].insert_one(
+                data_meta
+            )
+            pdr.meta = True
+            hosts_ts_ins = await db_client[Config.COLLECTION_NAME_HOSTS].insert_many(
+                [host for host in data_hosts_ts]
+            )
+            pdr.hosts_ts = True
+            new_value = {"$set": {"stored_meta": True, "stored_hosts": True}}
+            podpings_update = await db_client[Config.COLLECTION_NAME].update_one(
                 {"trx_id": pp.trx_id, "op_id": pp.op_id}, new_value
             )
         except Exception as ex:
             logging.error(ex)
     except DuplicateKeyError as ex:
+        pdr.podping = False
         logging.debug(f"Duplicate Key: {pp.trx_id} {pp.op_id}")
-        doc = await db_client[Config.COLLECTION_NAME].find_one(
-            {"trx_id": pp.trx_id, "op_id": pp.op_id}
+        meta_result = await update_meta_ts(db_client, pp)
+        pdr.hosts_ts = meta_result.hosts_ts
+        pdr.meta = meta_result.meta
+
+    return pdr
+
+
+async def update_meta_ts(
+    db_client: AsyncIOMotorClient, pp: Podping
+) -> PodpingDatabaseResult:
+    """Run the update to meta timeseries if we are adding to existing database"""
+    doc = await db_client[Config.COLLECTION_NAME].find_one(
+        {"trx_id": pp.trx_id, "op_id": pp.op_id}, {"stored_meta": 1, "stored_hosts": 1}
+    )
+    pdr = PodpingDatabaseResult()
+    if doc and not doc.get("stored_meta"):
+        data_meta = pp.db_format_meta()
+        ans2 = await db_client[Config.COLLECTION_NAME_META].insert_one(data_meta)
+        new_value = {"$set": {"stored_meta": True}}
+        ans3 = await db_client[Config.COLLECTION_NAME].update_one(
+            {"trx_id": pp.trx_id}, new_value
         )
-        if doc and not doc.get("stored_meta"):
-            ans2 = await db_client[Config.COLLECTION_NAME_META].insert_one(data_meta)
-            new_value = {"$set": {"stored_meta": True}}
-            ans3 = await db_client[Config.COLLECTION_NAME].update_one(
-                {"trx_id": pp.trx_id}, new_value
-            )
-            logging.debug(f"Metadata updated for        {pp.trx_id}")
-        else:
-            logging.debug(f"Metadata already exists for {pp.trx_id}")
-        return False
+        logging.debug(f"Metadata updated for        {pp.trx_id}")
+        pdr.meta = True
+    if doc and not doc.get("stored_hosts"):
+        data_hosts_ts = pp.db_format_hosts_ts()
+        ans2 = await db_client[Config.COLLECTION_NAME_HOSTS].insert_many(
+            [host for host in data_hosts_ts]
+        )
+        new_value = {"$set": {"stored_hosts": True}}
+        ans3 = await db_client[Config.COLLECTION_NAME].update_one(
+            {"trx_id": pp.trx_id}, new_value
+        )
+        logging.debug(f"Hosts   updated for        {pp.trx_id}")
+        pdr.hosts_ts = True
 
-    return True
-
-
-# async def store_meta()
+    return pdr
 
 
 async def block_at_postion(position=1, db: AsyncIOMotorCollection = None) -> int:

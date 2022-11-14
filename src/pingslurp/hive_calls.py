@@ -319,7 +319,6 @@ async def keep_checking_hive_stream(
                 count_new += new_pings.count(True)
                 tasks = []
             except Exception as ex:
-                logging.exception(ex)
                 logging.warning(ex)
             duration = timer() - timer_start
             if end_block == sys.maxsize:
@@ -346,15 +345,9 @@ async def insert_and_report_podping(
     message: str,
     state_options: StateOptions,
 ) -> bool:
-    if await insert_podping(client, podping):
-        if state_options.verbose:
-            logging.info(
-                f"{message:>8}New       podping: {podping.trx_id} | {podping.required_posting_auths} | {podping.block_num}"
-            )
-        return True
-    else:
-        if state_options.verbose:
-            logging.info(
-                f"{message:>8}Duplicate podping: {podping.trx_id} | {podping.required_posting_auths} | {podping.block_num}"
-            )
-        return False
+    pdr = await insert_podping(client, podping)
+    if state_options.verbose:
+        logging.info(
+            f"{message:>8} {pdr.insert_result} {podping.trx_id} | {podping.required_posting_auths} | {podping.block_num}"
+        )
+    return pdr.podping

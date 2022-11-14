@@ -1,3 +1,4 @@
+import json
 import logging
 from datetime import timedelta
 
@@ -13,7 +14,7 @@ from pingslurp.database import (
     range_extract,
 )
 from pingslurp.hive_calls import get_block_datetime, get_hive_blockchain
-
+from pingslurp.podping_schemas import Podping
 
 @pytest.mark.asyncio
 async def test_all_blocks():
@@ -83,3 +84,26 @@ async def test_meta_find_big_gaps():
     logging.info(ans)
     logging.info(date_gaps)
     assert ans
+
+
+@pytest.mark.asyncio
+async def test_check_hosts():
+    db = get_mongo_db(Config.COLLECTION_NAME)
+    cursor = db.find({}, {'_id': 0}).limit(20)
+    async for doc in cursor:
+        pp = Podping.parse_obj(doc)
+        for iri in pp.iris:
+            # logging.info(iri.__repr__())
+            logging.info(f"{iri.host:<20} | {iri:>30}")
+        # logging.info(pp)
+
+@pytest.mark.asyncio
+async def test_check_podping_formats():
+    db = get_mongo_db(Config.COLLECTION_NAME)
+    cursor = db.find({}, {'_id': 0}).limit(20)
+    async for doc in cursor:
+        pp = Podping.parse_obj(doc)
+
+        # logging.info(pp.db_format_hosts_ts())
+        logging.info(json.dumps(pp.db_format_hosts_ts(), indent=2, default=str))
+        # logging.info(pp)

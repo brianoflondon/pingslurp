@@ -1,8 +1,9 @@
 import json
 from datetime import datetime
 from enum import Enum, auto
-from typing import Any, List, Literal
-
+import logging
+from typing import Any, List, Literal, Optional
+import re
 from pydantic import BaseModel, validator
 
 
@@ -59,6 +60,7 @@ class PodpingMeta(BaseModel):
     hive: str = None
     v: str = None
     stored_meta: bool = False
+    stored_hosts: bool = False
     op_id: int = 1  # Counter for multiple operations in one trx_id
 
     def __init__(__pydantic_self__, **data: Any) -> None:
@@ -75,24 +77,66 @@ class PodpingMeta(BaseModel):
         }
 
 
+known_hosts: dict[str, str] = {
+    "Buzzsprout": r".*buzzsprout.com\/.*",
+    "RSS.com": r".*rss.com\/.*",
+    "Transistor": r".*transistor.fm\/.*",
+    "Captivate": r".*captivate.fm\/.*",
+    "3speak": r".*3speak.tv\/.*",
+    "example.com": r".*example.com\/.*",
+    # "Other": r".*",
+}
+
+all_hosts = ""
+for host in known_hosts.values():
+    all_hosts += (f"({host})|")
+all_hosts = all_hosts[:-1]
+
+
+class PodpingIri(str):
+    """Model for each IRI in a podping"""
+
+    def __new__(cls, content: str, **data: Any):
+        return super().__new__(cls, content)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({str(self)}), {self.host})"
+
+    @property
+    def host(self) -> str:
+        if re.match(all_hosts, self):
+            for key, value in known_hosts.items():
+                if re.match(value, self):
+                    return key
+        return "Other"
+
+
 class Podping(HiveTrx, PodpingMeta, BaseModel):
     """Dataclass for on-chain podping schema"""
 
     version: PodpingVersions = PodpingVersions.v1_0
     medium: PodpingMediums = None
     reason: PodpingReasons = None
-    iris: List[str] = []
+    iris: List[PodpingIri] = []
     timestampNs: datetime = None
     sessionId: str = None
 
     def __init__(__pydantic_self__, **data: Any) -> None:
-        custom_json = json.loads(data.get("json"))
-        podping_meta = data
-        hive_trx = {}
-        podping_meta["json_size"] = utf8len(data.get("json"))
-        if iris := custom_json.get("iris"):
-            podping_meta["num_iris"] = len(iris)
-        super().__init__(**custom_json, **hive_trx, **podping_meta)
+        try:
+            if data.get("json"):
+                podping_meta = data
+                custom_json = json.loads(data.get("json"))
+                podping_meta["json_size"] = utf8len(data.get("json"))
+                if iris := custom_json.get("iris"):
+                    podping_meta["num_iris"] = len(iris)
+                    custom_json['iris'] = [PodpingIri(iri) for iri in iris]
+                super().__init__(**custom_json, **podping_meta)
+            elif iris := data.get('iris'):
+                data['iris'] = [PodpingIri(iri) for iri in iris]
+                super().__init__(**data)
+
+        except Exception as ex:
+            logging.exception(ex)
 
     @validator("iris")
     def iris_at_least_one_element(cls, v):
@@ -114,3 +158,18 @@ class Podping(HiveTrx, PodpingMeta, BaseModel):
         db_meta["op_id"] = self.op_id
         db_meta["block_num"] = self.block_num
         return db_meta
+
+
+    def db_format_hosts_ts(self) -> List[dict]:
+        ans = []
+        for iri in self.iris:
+            db = {
+                "metadata":{
+                    "host": iri.host
+                },
+                "timestamp": self.timestamp,
+                "iri": iri,
+                "trx_id": self.trx_id,
+            }
+            ans.append(db)
+        return ans
