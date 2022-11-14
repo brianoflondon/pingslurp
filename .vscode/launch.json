@@ -89,6 +89,18 @@
             ],
             "console": "integratedTerminal",
             "justMyCode": true,
+        },
+        {
+            "name": "databaseupdate pingslurp",
+            "type": "python",
+            "request": "launch",
+            "envFile": "${workspaceFolder}/.env",
+            "program": "${workspaceFolder}/src/pingslurp.py",
+            "args": [
+                "--no-verbose", "databaseupdate"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true,
         }
     ]
 }

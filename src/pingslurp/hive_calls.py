@@ -348,6 +348,6 @@ async def insert_and_report_podping(
     pdr = await insert_podping(client, podping)
     if state_options.verbose:
         logging.info(
-            f"{message:>8} {pdr.insert_result} {podping.trx_id} | {podping.required_posting_auths} | {podping.block_num}"
+            f"{message:>8} {pdr.insert_result}"
         )
     return pdr.podping

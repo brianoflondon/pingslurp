@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import timedelta
@@ -8,7 +9,7 @@ from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
 from pymongo import ASCENDING, DESCENDING, MongoClient
 from pymongo.errors import DuplicateKeyError, OperationFailure
 
-from pingslurp.config import Config
+from pingslurp.config import Config, StateOptions
 from pingslurp.podping_schemas import Podping
 
 
@@ -82,6 +83,10 @@ class PodpingDatabaseResult:
     podping: bool = False
     meta: bool = False
     hosts_ts: bool = False
+    trx_id: str = None
+    block_num: str = None
+    op_id: int = 1
+    required_posting_auths: str = None
 
     @property
     def insert_result(self) -> str:
@@ -92,7 +97,8 @@ class PodpingDatabaseResult:
         return (
             f"{p_txt:<18} | "
             f"New Metadata {m_txt:<5} | "
-            f"New Hosts {h_txt:<5}"
+            f"New Hosts {h_txt:<5} | "
+            f"{self.trx_id} | {self.block_num} | {self.required_posting_auths}"
         )
 
 
@@ -102,22 +108,28 @@ async def insert_podping(
     """Put a podping in the database, returns True if new podping was inserted
     False if duplicate."""
     data = pp.db_format()
-    pdr = PodpingDatabaseResult()
+    pdr = PodpingDatabaseResult(
+        trx_id=pp.trx_id,
+        block_num=pp.block_num,
+        op_id=pp.op_id,
+        required_posting_auths=pp.required_posting_auths,
+    )
     try:
         ans = await db_client[Config.COLLECTION_NAME].insert_one(data)
         pdr.podping = True
         # if we have a new podping, store its metadata
         try:
             data_meta = pp.db_format_meta()
-            data_hosts_ts = pp.db_format_hosts_ts()
             meta_ts_ins = await db_client[Config.COLLECTION_NAME_META].insert_one(
                 data_meta
             )
             pdr.meta = True
-            hosts_ts_ins = await db_client[Config.COLLECTION_NAME_HOSTS].insert_many(
-                [host for host in data_hosts_ts]
-            )
-            pdr.hosts_ts = True
+            data_hosts_ts = pp.db_format_hosts_ts()
+            if data_hosts_ts:
+                hosts_ts_ins = await db_client[
+                    Config.COLLECTION_NAME_HOSTS
+                ].insert_many([host for host in data_hosts_ts])
+                pdr.hosts_ts = True
             new_value = {"$set": {"stored_meta": True, "stored_hosts": True}}
             podpings_update = await db_client[Config.COLLECTION_NAME].update_one(
                 {"trx_id": pp.trx_id, "op_id": pp.op_id}, new_value
@@ -141,14 +153,21 @@ async def update_meta_ts(
     doc = await db_client[Config.COLLECTION_NAME].find_one(
         {"trx_id": pp.trx_id, "op_id": pp.op_id}, {"stored_meta": 1, "stored_hosts": 1}
     )
-    pdr = PodpingDatabaseResult()
+    pdr = PodpingDatabaseResult(
+        trx_id=pp.trx_id,
+        block_num=pp.block_num,
+        op_id=pp.op_id,
+        required_posting_auths=pp.required_posting_auths,
+    )
     if doc and not doc.get("stored_meta"):
         data_meta = pp.db_format_meta()
         ans2 = await db_client[Config.COLLECTION_NAME_META].insert_one(data_meta)
+        logging.info(ans2)
         new_value = {"$set": {"stored_meta": True}}
         ans3 = await db_client[Config.COLLECTION_NAME].update_one(
-            {"trx_id": pp.trx_id}, new_value
+            {"trx_id": pp.trx_id, "op_id": pp.op_id}, new_value
         )
+        logging.info(ans3)
         logging.debug(f"Metadata updated for        {pp.trx_id}")
         pdr.meta = True
     if doc and not doc.get("stored_hosts"):
@@ -159,7 +178,7 @@ async def update_meta_ts(
             )
             new_value = {"$set": {"stored_hosts": True}}
             ans3 = await db_client[Config.COLLECTION_NAME].update_one(
-                {"trx_id": pp.trx_id}, new_value
+                {"trx_id": pp.trx_id, "op_id": pp.op_id}, new_value
             )
             logging.debug(f"Hosts   updated for        {pp.trx_id}")
             pdr.hosts_ts = True
@@ -281,10 +300,43 @@ async def range_extract(iterable: AsyncIterator) -> AsyncIterator:
         i = j
 
 
-# async def blocks_of_blocks(db: AsyncIOMotorCollection = None):
-#     """Returns the groups of contiguous blocks we have already searched through"""
-
-#     data = all_blocks_it(db)
-
-#     for k, g in groupby(enumerate(data), lambda (i,x):i-x):
-#        print map(operator.itemgetter(1), g)
+async def database_update(state_options: StateOptions, force_update: bool = False):
+    client = get_mongo_client()
+    db = client[Config.COLLECTION_NAME]
+    cursor = db.find(
+        {"$or": [{"stored_meta": None}, {"stored_hosts": None}]}, {"_id": 0}
+    )
+    message = "DATABASE"
+    tasks = []
+    try:
+        async for doc in cursor:
+            pp = Podping.parse_obj(doc)
+            if pp.iris:
+                tasks.append(insert_podping(db_client=client, pp=pp))
+            if len(tasks) > 1000:
+                all_pdr = await asyncio.gather(*tasks)
+                if state_options.verbose:
+                    for pdr in all_pdr:
+                        logging.info(f"{message:>8} {pdr.insert_result}")
+                else:
+                    logging.info(f"Scanned up to {pp.block_num}")
+                tasks = []
+    except asyncio.CancelledError as ex:
+        logging.warning(
+            "asyncio.CancelledError raised in database_update"
+        )
+        logging.warning(f"{ex} {ex.__class__}")
+        raise ex
+    except KeyboardInterrupt:
+        raise KeyboardInterrupt
+    finally:
+        try:
+            all_pdr = await asyncio.gather(*tasks)
+            if state_options.verbose:
+                for pdr in all_pdr:
+                    logging.info(f"{message:>8} {pdr.insert_result}")
+            else:
+                logging.info(f"Scanned up to {pp.block_num}")
+            tasks = []
+        except Exception as ex:
+            logging.warning(ex)

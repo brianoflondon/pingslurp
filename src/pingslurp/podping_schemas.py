@@ -134,6 +134,8 @@ class Podping(HiveTrx, PodpingMeta, BaseModel):
             elif iris := data.get('iris'):
                 data['iris'] = [PodpingIri(iri) for iri in iris]
                 super().__init__(**data)
+            else:
+                super().__init__(**data)
 
         except Exception as ex:
             logging.exception(ex)

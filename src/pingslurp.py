@@ -14,6 +14,7 @@ from pingslurp.config import Config, StateOptions
 from pingslurp.database import (
     all_blocks_it,
     block_at_postion,
+    database_update,
     find_big_gaps,
     get_mongo_db,
     is_empty,
@@ -206,7 +207,7 @@ def main(verbose: bool = True):
     Manage users in the awesome CLI app.
     """
     if not verbose:
-        logging.info("Will write verbose output")
+        logging.info("Will not write verbose output")
         state_options.verbose = False
 
 
@@ -286,6 +287,18 @@ def scanhistory(
     # Block to end the scan at.
     run_main_loop(scan_history_loop(start_days, bots))
 
+
+@app.command()
+def databaseupdate(
+    force_update: Optional[bool] = typer.Option(
+        False, help="Delete and overwriter the timeseries collections"
+    )
+):
+    """
+    Goes through the entire database makes sure the meta data timeseries collections are
+    complete with a record for each podping. Does not fetch new Podpings from Hive.
+    """
+    run_main_loop(database_update(state_options, force_update))
 
 if __name__ == "__main__":
     logging.info(f"Starting up Pingslurp version {__version__}")
