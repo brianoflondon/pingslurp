@@ -300,8 +300,8 @@ async def keep_checking_hive_stream(
                 ),
                 name="keep_checking_hive_error_notification",
             )
-            logging.error(f"Exception in Hive Watcher  {ex}")
-            logging.error(ex)
+            logging.error(f"Exception in Pingslurp  {ex}")
+            logging.exception(ex)
             logging.warning(f"Last good block: {prev_block_num:,}")
             await asyncio.sleep(10)
             prev_block_num -= 20

@@ -153,15 +153,16 @@ async def update_meta_ts(
         pdr.meta = True
     if doc and not doc.get("stored_hosts"):
         data_hosts_ts = pp.db_format_hosts_ts()
-        ans2 = await db_client[Config.COLLECTION_NAME_HOSTS].insert_many(
-            [host for host in data_hosts_ts]
-        )
-        new_value = {"$set": {"stored_hosts": True}}
-        ans3 = await db_client[Config.COLLECTION_NAME].update_one(
-            {"trx_id": pp.trx_id}, new_value
-        )
-        logging.debug(f"Hosts   updated for        {pp.trx_id}")
-        pdr.hosts_ts = True
+        if data_hosts_ts:
+            ans2 = await db_client[Config.COLLECTION_NAME_HOSTS].insert_many(
+                [host for host in data_hosts_ts]
+            )
+            new_value = {"$set": {"stored_hosts": True}}
+            ans3 = await db_client[Config.COLLECTION_NAME].update_one(
+                {"trx_id": pp.trx_id}, new_value
+            )
+            logging.debug(f"Hosts   updated for        {pp.trx_id}")
+            pdr.hosts_ts = True
 
     return pdr
 
