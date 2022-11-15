@@ -196,28 +196,27 @@ def output_status(
     if block_num != prev_block_num:
         counter += 1
         blocknum_change = True
+        prev_block_num = block_num
+        # if counter > HIVE_STATUS_OUTPUT_BLOCKS - 1:
+        hive_string = f"| {hive.data.get('last_node')}" if hive else ""
+        time_delta = seconds_only(
+            datetime.utcnow() - hive_post["timestamp"].replace(tzinfo=None)
+        )
+        time_delta_str = f"{time_delta}"
+        output_string = (
+            f"{message:>8}Block: {block_num:,} | "
+            f"Timedelta: {time_delta_str:>20}{hive_string}"
+        )
         if pbar:
             pbar.update(1)
-        prev_block_num = block_num
-        if counter > HIVE_STATUS_OUTPUT_BLOCKS - 1:
-            hive_string = f"| {hive.data.get('last_node')}" if hive else ""
-            time_delta = seconds_only(
-                datetime.utcnow() - hive_post["timestamp"].replace(tzinfo=None)
-            )
-            time_delta_str = f"{time_delta}"
-            output_string = (
-                f"{message:>8}Block: {block_num:,} | "
-                f"Timedelta: {time_delta_str:>20}{hive_string}"
-            )
-            if pbar:
-                pbar.desc = output_string
-            else:
-                logging.info(output_string)
-            if time_delta < timedelta(seconds=0):
-                logging.warning(
-                    f"Clock might be wrong showing a time drift {time_delta}"
-                )
-            counter = 0
+            pbar.desc = output_string
+        else:
+            logging.info(output_string)
+        # if time_delta < timedelta(seconds=0):
+        #     logging.warning(
+        #         f"Clock might be wrong showing a time drift {time_delta}"
+        #     )
+        counter = 0
     return prev_block_num, counter, blocknum_change
 
 

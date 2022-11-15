@@ -119,9 +119,6 @@ async def catchup_loop():
     live_start_block = await block_at_postion(-1)
 
     async with asyncio.TaskGroup() as tg:
-        catchup_task = tg.create_task(
-            history_loop(start_block=start_block, end_block=end_block)
-        )
         live_task = tg.create_task(
             keep_checking_hive_stream(
                 start_block=live_start_block,
@@ -129,6 +126,9 @@ async def catchup_loop():
                 message="LIVE",
                 state_options=state_options,
             )
+        )
+        catchup_task = tg.create_task(
+            history_loop(start_block=start_block, end_block=end_block)
         )
     logging.info(catchup_task.result())
     logging.info(live_task.result())
