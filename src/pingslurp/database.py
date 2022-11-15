@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
 from pymongo import ASCENDING, DESCENDING, MongoClient
 from pymongo.errors import DuplicateKeyError, OperationFailure
+from tqdm.asyncio import tqdm
 
 from pingslurp.config import Config, StateOptions
 from pingslurp.podping_schemas import Podping
@@ -326,24 +327,30 @@ async def database_update(state_options: StateOptions, force_update: bool = Fals
         await clear_meta_data()
     client = get_mongo_client()
     collection = client[Config.COLLECTION_NAME]
+    filter = {"$or": [{"stored_meta": None}, {"stored_hosts": None}]}
     cursor = collection.find(
-        {"$or": [{"stored_meta": None}, {"stored_hosts": None}]}, {"_id": 0}
+        filter, {"_id": 0}
     )
+    total = await collection.count_documents(filter)
     message = "DATABASE"
     tasks = []
     try:
-        async for doc in cursor:
-            pp = Podping.parse_obj(doc)
-            if pp.iris:
-                tasks.append(insert_podping(db_client=client, pp=pp))
-            if len(tasks) > 1000:
-                all_pdr = await asyncio.gather(*tasks)
-                if state_options.verbose:
-                    for pdr in all_pdr:
-                        logging.info(f"{message:>8} {pdr.insert_result}")
-                else:
-                    logging.info(f"Scanned up to {pp.block_num}")
-                tasks = []
+        with tqdm(cursor) as pbar:
+            pbar.total = total
+            async for doc in pbar:
+                pp = Podping.parse_obj(doc)
+                if pp.iris:
+                    pbar.desc = f"Scanned up to {pp.block_num}"
+                    tasks.append(insert_podping(db_client=client, pp=pp))
+                if len(tasks) > 1000:
+                    all_pdr = await asyncio.gather(*tasks)
+                    if state_options.verbose:
+                        for pdr in all_pdr:
+                            logging.info(f"{message:>8} {pdr.insert_result}")
+                    else:
+                        pass
+                        # logging.info(f"Scanned up to {pp.block_num}")
+                    tasks = []
     except asyncio.CancelledError as ex:
         logging.warning("asyncio.CancelledError raised in database_update")
         logging.warning(f"{ex} {ex.__class__}")

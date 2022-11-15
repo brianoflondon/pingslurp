@@ -100,9 +100,9 @@
             "envFile": "${workspaceFolder}/.env",
             "program": "${workspaceFolder}/src/pingslurp.py",
             "args": [
-                // "--no-verbose",
+                "--no-verbose",
                 "databaseupdate",
-                "--force-update",
+                // "--force-update",
             ],
             "console": "integratedTerminal",
             "justMyCode": true,
