@@ -183,7 +183,7 @@ async def scan_history_loop(start_days, bots):
         next_end = int(start_block + block_gap + 10)
         if next_end > current_block:
             next_end = current_block
-        block_gaps.append((int(start_block - 50),next_end))
+        block_gaps.append((int(start_block - 50), next_end))
         start_block += block_gap
 
     print(block_gaps)
@@ -312,9 +312,6 @@ def databaseupdate(
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.WARN
-    )
     logging.info(f"Starting up Pingslurp version {__version__}")
     setup_mongo_db()
     app()

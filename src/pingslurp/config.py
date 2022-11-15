@@ -1,11 +1,13 @@
 import logging
 import os
+import sys
 
 from dotenv import load_dotenv
 
 debug = False
 logging.basicConfig(
-    level=logging.WARN if not debug else logging.DEBUG,
+    stream=sys.stderr,
+    level=logging.INFO if not debug else logging.DEBUG,
     format="%(asctime)s %(levelname)-8s %(module)-14s %(lineno) 5d : %(message)s",
     datefmt="%m-%dT%H:%M:%S",
 )

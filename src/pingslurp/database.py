@@ -55,7 +55,7 @@ def setup_mongo_db() -> None:
             timeseries={
                 "timeField": "timestamp",
                 "metaField": "metadata",
-                "granularity": "seconds",
+                "granularity": "minutes",
             },
         )
         logging.info(f"DB: {Config.COLLECTION_NAME_META} created in database")
@@ -68,7 +68,7 @@ def setup_mongo_db() -> None:
             timeseries={
                 "timeField": "timestamp",
                 "metaField": "metadata",
-                "granularity": "seconds",
+                "granularity": "minutes",
             },
         )
         logging.info(f"DB: {Config.COLLECTION_NAME_HOSTS} created in database")

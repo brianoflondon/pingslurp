@@ -27,7 +27,8 @@
             "envFile": "${workspaceFolder}/.env",
             "program": "${workspaceFolder}/src/pingslurp.py",
             "args": [
-                "scanrange", "--start-days", "14.95", "--end-days", "14.945"
+                "--no-verbose",
+                "scanrange", "--start-days", "6", "--end-days", "5.99"
             ],
             "console": "integratedTerminal",
             "justMyCode": true,
@@ -49,6 +50,7 @@
             "envFile": "${workspaceFolder}/.env",
             "program": "${workspaceFolder}/src/pingslurp.py",
             "args": [
+                "--no-verbose",
                 "live"
             ],
             "console": "integratedTerminal",
@@ -61,6 +63,7 @@
             "envFile": "${workspaceFolder}/.env",
             "program": "${workspaceFolder}/src/pingslurp.py",
             "args": [
+                "--no-verbose",
                 "fillgaps"
             ],
             "console": "integratedTerminal",

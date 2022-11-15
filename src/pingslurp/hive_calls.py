@@ -14,6 +14,7 @@ from beemapi.exceptions import NumRetriesReached
 from httpx import URL
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import ValidationError
+from tqdm.asyncio import tqdm, tqdm_asyncio
 
 from pingslurp.async_wrapper import sync_to_async_iterable
 from pingslurp.config import StateOptions
@@ -187,6 +188,7 @@ def output_status(
     counter: int,
     message: str = "",
     hive: Hive = "",
+    pbar: tqdm_asyncio = None,
 ) -> Tuple[int, int, bool]:
     """Output a status line for the Hive scanner"""
     block_num = hive_post["block_num"]
@@ -194,16 +196,23 @@ def output_status(
     if block_num != prev_block_num:
         counter += 1
         blocknum_change = True
+        if pbar:
+            pbar.update(1)
         prev_block_num = block_num
         if counter > HIVE_STATUS_OUTPUT_BLOCKS - 1:
             hive_string = f"| {hive.data.get('last_node')}" if hive else ""
             time_delta = seconds_only(
                 datetime.utcnow() - hive_post["timestamp"].replace(tzinfo=None)
             )
-            logging.info(
+            time_delta_str = f"{time_delta}"
+            output_string = (
                 f"{message:>8}Block: {block_num:,} | "
-                f"Timedelta: {time_delta}{hive_string}"
+                f"Timedelta: {time_delta_str:>20}{hive_string}"
             )
+            if pbar:
+                pbar.desc = output_string
+            else:
+                logging.info(output_string)
             if time_delta < timedelta(seconds=0):
                 logging.warning(
                     f"Clock might be wrong showing a time drift {time_delta}"
@@ -236,11 +245,12 @@ async def keep_checking_hive_stream(
         message += " | "
 
     client = get_mongo_client()
-    if start_block <= 0:
+    if start_block and start_block <= 0:
         prev_block_num = get_current_hive_block_num() - 600
-        start_block = prev_block_num
     else:
         prev_block_num = get_block_num(start_block, time_delta)
+    if not start_block:
+        start_block = prev_block_num
     start_block_date = get_block_datetime(prev_block_num)
     count_new = 0
     while True:
@@ -261,86 +271,103 @@ async def keep_checking_hive_stream(
             )
         prev_trx_id = ""
         op_id = 1
-        try:
-            tasks = []
-            async for post in stream:
-                prev_block_num, counter, block_num_change = output_status(
-                    post, prev_block_num, counter, message=message, hive=hive
+        if end_block < sys.maxsize:
+            total = end_block - start_block
+        else:
+            total = get_current_hive_block_num() - start_block
+        with tqdm(total=total) as pbar:
+            output_string = (
+                f"{message:>8}Block: {prev_block_num:,} | "
+                f"{'':>59}"
+            )
+            pbar.desc = output_string
+            try:
+                tasks = []
+                async for post in stream:
+                    prev_block_num, counter, block_num_change = output_status(
+                        post,
+                        prev_block_num,
+                        counter,
+                        message=message,
+                        hive=hive,
+                        pbar=pbar,
+                    )
+                    if len(tasks) > database_cache:
+                        new_pings = await asyncio.gather(*tasks)
+                        count_new += new_pings.count(True)
+                        tasks = []
+                    if post["type"] in OP_NAMES and (
+                        post.get("id").startswith("pp_")
+                        or post.get("id").startswith("pplt_")
+                    ):
+                        try:
+                            podping = Podping.parse_obj(post)
+                            if podping.trx_id == prev_trx_id:
+                                op_id += 1
+                                podping.op_id = op_id
+                            else:
+                                op_id = 1
+                            prev_trx_id = podping.trx_id
+                            tasks.append(
+                                insert_and_report_podping(
+                                    client, podping, message, state_options
+                                )
+                            )
+                        except ValidationError as ex:
+                            logging.error(
+                                f"ValidationError | {post.get('trx_id')} | {post.get('block_num')}"
+                            )
+                            logging.error(json.dumps(post, indent=2, default=str))
+                            logging.error([post["json"]])
+                            logging.error(ex)
+
+                    if post["block_num"] > end_block:
+                        break
+
+            except (httpx.ReadTimeout, Exception) as ex:
+                asyncio.create_task(
+                    send_notification_via_api(
+                        notify="pingslurp: Error watching Hive", alert_level=5
+                    ),
+                    name="keep_checking_hive_error_notification",
                 )
-                if len(tasks) > database_cache:
+                logging.error(f"Exception in Pingslurp  {ex}")
+                logging.exception(ex)
+                logging.warning(f"Last good block: {prev_block_num:,}")
+                await asyncio.sleep(10)
+                prev_block_num -= 20
+            except asyncio.CancelledError as ex:
+                logging.warning(
+                    "asyncio.CancelledError raised in keep_checking_hive_stream"
+                )
+                logging.debug(f"{ex} {ex.__class__}")
+                raise ex
+            except KeyboardInterrupt:
+                raise KeyboardInterrupt
+            finally:
+                try:
                     new_pings = await asyncio.gather(*tasks)
                     count_new += new_pings.count(True)
                     tasks = []
-                if post["type"] in OP_NAMES and (
-                    post.get("id").startswith("pp_")
-                    or post.get("id").startswith("pplt_")
-                ):
-                    try:
-                        podping = Podping.parse_obj(post)
-                        if podping.trx_id == prev_trx_id:
-                            op_id += 1
-                            podping.op_id = op_id
-                        else:
-                            op_id = 1
-                        prev_trx_id = podping.trx_id
-                        tasks.append(
-                            insert_and_report_podping(client, podping, message, state_options)
-                        )
-                    except ValidationError as ex:
-                        logging.error(
-                            f"ValidationError | {post.get('trx_id')} | {post.get('block_num')}"
-                        )
-                        logging.error(json.dumps(post, indent=2, default=str))
-                        logging.error([post["json"]])
-                        logging.error(ex)
-
-                if post["block_num"] > end_block:
-                    break
-
-        except (httpx.ReadTimeout, Exception) as ex:
-            asyncio.create_task(
-                send_notification_via_api(
-                    notify="pingslurp: Error watching Hive", alert_level=5
-                ),
-                name="keep_checking_hive_error_notification",
-            )
-            logging.error(f"Exception in Pingslurp  {ex}")
-            logging.exception(ex)
-            logging.warning(f"Last good block: {prev_block_num:,}")
-            await asyncio.sleep(10)
-            prev_block_num -= 20
-        except asyncio.CancelledError as ex:
-            logging.warning(
-                "asyncio.CancelledError raised in keep_checking_hive_stream"
-            )
-            logging.warning(f"{ex} {ex.__class__}")
-            raise ex
-        except KeyboardInterrupt:
-            raise KeyboardInterrupt
-        finally:
-            try:
-                new_pings = await asyncio.gather(*tasks)
-                count_new += new_pings.count(True)
-                tasks = []
-            except Exception as ex:
-                logging.warning(ex)
-            duration = timer() - timer_start
-            if end_block == sys.maxsize:
-                end_block = prev_block_num
-            end_block_date = get_block_datetime(end_block)
-            block_duration = end_block_date - start_block_date
-            ret_message = (
-                f"{message:>8}Scanned from {start_block} to {end_block}. "
-                f"Finished scanning at {prev_block_num}. New Pings: {count_new} | "
-                f"Time to scan: {seconds_only(timedelta(seconds=duration))} | "
-                f"Block time: {seconds_only(block_duration)} | "
-                f"Speedup: {(block_duration.total_seconds() / duration):.1f}"
-            )
-            logging.info(ret_message)
-            return (
-                prev_block_num,
-                ret_message,
-            )
+                except Exception as ex:
+                    logging.debug(ex)
+                duration = timer() - timer_start
+                if end_block == sys.maxsize:
+                    end_block = prev_block_num
+                end_block_date = get_block_datetime(end_block)
+                block_duration = end_block_date - start_block_date
+                ret_message = (
+                    f"{message:>8}Scanned from {start_block} to {end_block}. "
+                    f"Finished scanning at {prev_block_num}. New Pings: {count_new} | "
+                    f"Time to scan: {seconds_only(timedelta(seconds=duration))} | "
+                    f"Block time: {seconds_only(block_duration)} | "
+                    f"Speedup: {(block_duration.total_seconds() / duration):.1f}"
+                )
+                logging.debug(ret_message)
+                return (
+                    prev_block_num,
+                    ret_message,
+                )
 
 
 async def insert_and_report_podping(
@@ -351,7 +378,5 @@ async def insert_and_report_podping(
 ) -> bool:
     pdr = await insert_podping(client, podping)
     if state_options.verbose:
-        logging.info(
-            f"{message:>8} {pdr.insert_result}"
-        )
+        logging.info(f"{message:>8} {pdr.insert_result}")
     return pdr.podping

@@ -19,6 +19,7 @@ httpx = "^0.23.0"
 pymssql = "^2.2.5"
 python-dotenv = "^0.21.0"
 typer = {extras = ["all"], version = "^0.6.1"}
+tqdm = "^4.64.1"
 
 
 [tool.poetry.group.dev.dependencies]
