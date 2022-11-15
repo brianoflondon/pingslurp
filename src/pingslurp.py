@@ -207,13 +207,13 @@ def run_main_loop(task: Coroutine):
 
 
 @app.callback()
-def main(verbose: bool = True):
+def main(verbose: bool = False):
     """
     Manage users in the awesome CLI app.
     """
-    if not verbose:
-        logging.info("Will not write verbose output")
-        state_options.verbose = False
+    state_options.verbose = verbose
+    if  verbose:
+        logging.info("Using Verbose output")
 
 
 @app.command()

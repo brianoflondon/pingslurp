@@ -24,4 +24,4 @@ class Config:
     COLLECTION_NAME_HOSTS = "hosts_ts"
 
 class StateOptions():
-    verbose: bool = True
+    verbose: bool = False
