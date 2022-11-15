@@ -236,7 +236,11 @@ async def keep_checking_hive_stream(
         message += " | "
 
     client = get_mongo_client()
-    prev_block_num = get_block_num(start_block, time_delta)
+    if start_block <= 0:
+        prev_block_num = get_current_hive_block_num() - 600
+        start_block = prev_block_num
+    else:
+        prev_block_num = get_block_num(start_block, time_delta)
     start_block_date = get_block_datetime(prev_block_num)
     count_new = 0
     while True:

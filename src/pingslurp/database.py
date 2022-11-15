@@ -162,12 +162,10 @@ async def update_meta_ts(
     if doc and not doc.get("stored_meta"):
         data_meta = pp.db_format_meta()
         ans2 = await db_client[Config.COLLECTION_NAME_META].insert_one(data_meta)
-        logging.info(ans2)
         new_value = {"$set": {"stored_meta": True}}
         ans3 = await db_client[Config.COLLECTION_NAME].update_one(
             {"trx_id": pp.trx_id, "op_id": pp.op_id}, new_value
         )
-        logging.info(ans3)
         logging.debug(f"Metadata updated for        {pp.trx_id}")
         pdr.meta = True
     if doc and not doc.get("stored_hosts"):
@@ -186,18 +184,20 @@ async def update_meta_ts(
     return pdr
 
 
-async def block_at_postion(position=1, db: AsyncIOMotorCollection = None) -> int:
+async def block_at_postion(
+    position=1, collection: AsyncIOMotorCollection = None
+) -> int:
     """
     Returns the block at the given position in the database
     0 is the first block, -1 is the last block.
     """
-    if db is None:
-        db = get_mongo_db()
+    if collection is None:
+        collection = get_mongo_db()
     sort_order = 1
     if position < 0:
         sort_order = -1
         position = abs(position) - 1
-    cursor = db.find({}, {"block_num": 1}, allow_disk_use=True).sort(
+    cursor = collection.find({}, {"block_num": 1}, allow_disk_use=True).sort(
         [("block_num", sort_order)]
     )
     i = 0
@@ -208,24 +208,30 @@ async def block_at_postion(position=1, db: AsyncIOMotorCollection = None) -> int
     return 0
 
 
-async def all_blocks(db: AsyncIOMotorCollection = None) -> List:
+async def all_blocks(collection: AsyncIOMotorCollection = None) -> List:
     """Return a set of all block_num currently in the database from lowest to
     highest"""
-    if db is None:
-        db = get_mongo_db()
-    cursor = db.find({}, {"block_num": 1}, allow_disk_use=True).sort([("block_num", 1)])
+    if collection is None:
+        collection = get_mongo_db()
+    cursor = collection.find({}, {"block_num": 1}, allow_disk_use=True).sort(
+        [("block_num", 1)]
+    )
     ans = list()
     async for doc in cursor:
         ans.append(doc["block_num"])
     return ans
 
 
-async def all_blocks_it(db: AsyncIOMotorCollection = None) -> AsyncIterator[int]:
+async def all_blocks_it(
+    collection: AsyncIOMotorCollection = None,
+) -> AsyncIterator[int]:
     """Returns iterator of set of all block_num currently in the database from lowest to
     highest"""
-    if db is None:
-        db = get_mongo_db()
-    cursor = db.find({}, {"block_num": 1}, allow_disk_use=True).sort([("block_num", 1)])
+    if collection is None:
+        collection = get_mongo_db()
+    cursor = collection.find({}, {"block_num": 1}, allow_disk_use=True).sort(
+        [("block_num", 1)]
+    )
     async for doc in cursor:
         yield doc["block_num"]
 
@@ -254,7 +260,7 @@ async def find_big_gaps(
     big_gaps = []
     gap = (0, 0)
     last_block = 0
-    async for range_block in range_extract(all_blocks_it(db=db)):
+    async for range_block in range_extract(all_blocks_it(collection=db)):
         if range_block[0] - last_block > block_gap_size:
             logging.debug(f"Big gap at: {range_block}")
             gap = (last_block, range_block[0] - 1)
@@ -300,10 +306,27 @@ async def range_extract(iterable: AsyncIterator) -> AsyncIterator:
         i = j
 
 
-async def database_update(state_options: StateOptions, force_update: bool = False):
+async def clear_meta_data():
+    """Deletes ALL METADATA tables and resets the flags on all entries in the all_podpings
+    table"""
     client = get_mongo_client()
-    db = client[Config.COLLECTION_NAME]
-    cursor = db.find(
+    collection = get_mongo_db(Config.COLLECTION_NAME)
+    filter = {"$or": [{"stored_meta": True}, {"stored_hosts": True}]}
+    update = {"$unset": {"stored_meta": "", "stored_hosts": ""}}
+    await collection.update_many(filter, update)
+
+    await client.drop_collection(Config.COLLECTION_NAME_HOSTS)
+    await client.drop_collection(Config.COLLECTION_NAME_META)
+    setup_mongo_db()
+
+
+async def database_update(state_options: StateOptions, force_update: bool = False):
+    """Updates the Database scanning for all missing metadata and filling it in"""
+    if force_update:
+        await clear_meta_data()
+    client = get_mongo_client()
+    collection = client[Config.COLLECTION_NAME]
+    cursor = collection.find(
         {"$or": [{"stored_meta": None}, {"stored_hosts": None}]}, {"_id": 0}
     )
     message = "DATABASE"
@@ -322,9 +345,7 @@ async def database_update(state_options: StateOptions, force_update: bool = Fals
                     logging.info(f"Scanned up to {pp.block_num}")
                 tasks = []
     except asyncio.CancelledError as ex:
-        logging.warning(
-            "asyncio.CancelledError raised in database_update"
-        )
+        logging.warning("asyncio.CancelledError raised in database_update")
         logging.warning(f"{ex} {ex.__class__}")
         raise ex
     except KeyboardInterrupt:

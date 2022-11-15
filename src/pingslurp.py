@@ -41,7 +41,7 @@ async def find_date_gaps(
     block_gaps = await find_big_gaps(
         block_gap_size=block_gap_size, time_span=time_span, db=db
     )
-    last_block = await block_at_postion(position=-1, db=db)
+    last_block = await block_at_postion(position=-1, collection=db)
     current_block = get_current_hive_block_num()
     block_gaps.append((last_block, current_block))
     date_gaps = []
@@ -172,13 +172,18 @@ async def fillgaps_loop(block_gaps: List[Tuple[int, int]] = None):
 async def scan_history_loop(start_days, bots):
     time_delta = timedelta(days=start_days)
     start_block = get_block_num(time_delta=time_delta)
-    end_block = await block_at_postion(0) + 50
+    end_block = await block_at_postion(0) + 6
+    current_block = get_current_hive_block_num()
     blocks_per_day = (24 * 60 * 60) / 3
     total_blocks = end_block - start_block
     block_gap = total_blocks / bots
     block_gaps = []
-    while start_block < end_block:
-        block_gaps.append((int(start_block - 50), int(start_block + block_gap + 50)))
+    next_end = 0
+    while start_block < end_block and next_end < current_block:
+        next_end = int(start_block + block_gap + 10)
+        if next_end > current_block:
+            next_end = current_block
+        block_gaps.append((int(start_block - 50),next_end))
         start_block += block_gap
 
     print(block_gaps)
@@ -298,9 +303,18 @@ def databaseupdate(
     Goes through the entire database makes sure the meta data timeseries collections are
     complete with a record for each podping. Does not fetch new Podpings from Hive.
     """
+    if force_update:
+        are_you_sure = typer.confirm("Are you sure you want to delete all metadata?")
+        if not are_you_sure:
+            raise typer.Abort()
+
     run_main_loop(database_update(state_options, force_update))
 
+
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.WARN
+    )
     logging.info(f"Starting up Pingslurp version {__version__}")
     setup_mongo_db()
     app()

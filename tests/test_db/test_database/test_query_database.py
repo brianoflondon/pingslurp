@@ -16,6 +16,7 @@ from pingslurp.database import (
 from pingslurp.hive_calls import get_block_datetime, get_hive_blockchain
 from pingslurp.podping_schemas import Podping
 
+
 @pytest.mark.asyncio
 async def test_all_blocks():
     ans = await all_blocks()
@@ -38,10 +39,10 @@ async def test_first_last_blocks():
 @pytest.mark.asyncio
 async def test_meta_first_last_blocks():
     db = get_mongo_db(Config.COLLECTION_NAME_META)
-    fb = await block_at_postion(0, db=db)
+    fb = await block_at_postion(0, collection=db)
     assert fb
-    lb = await block_at_postion(position=-1, db=db)
-    mid = await block_at_postion(position=5, db=db)
+    lb = await block_at_postion(position=-1, collection=db)
+    mid = await block_at_postion(position=5, collection=db)
     assert fb < mid < lb
 
 
@@ -89,7 +90,7 @@ async def test_meta_find_big_gaps():
 @pytest.mark.asyncio
 async def test_check_hosts():
     db = get_mongo_db(Config.COLLECTION_NAME)
-    cursor = db.find({}, {'_id': 0}).limit(20)
+    cursor = db.find({}, {"_id": 0}).limit(20)
     async for doc in cursor:
         pp = Podping.parse_obj(doc)
         for iri in pp.iris:
@@ -97,10 +98,11 @@ async def test_check_hosts():
             logging.info(f"{iri.host:<20} | {iri:>30}")
         # logging.info(pp)
 
+
 @pytest.mark.asyncio
 async def test_check_podping_formats():
     db = get_mongo_db(Config.COLLECTION_NAME)
-    cursor = db.find({}, {'_id': 0}).limit(20)
+    cursor = db.find({}, {"_id": 0}).limit(20)
     async for doc in cursor:
         pp = Podping.parse_obj(doc)
 

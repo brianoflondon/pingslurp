@@ -13,9 +13,9 @@
             "args": [
                 "scanhistory",
                 "--start-days",
-                "67",
+                "5",
                 "--bots",
-                "10"
+                "20"
             ],
             "console": "integratedTerminal",
             "justMyCode": true,
@@ -97,7 +97,9 @@
             "envFile": "${workspaceFolder}/.env",
             "program": "${workspaceFolder}/src/pingslurp.py",
             "args": [
-                "--no-verbose", "databaseupdate"
+                // "--no-verbose",
+                "databaseupdate",
+                "--force-update",
             ],
             "console": "integratedTerminal",
             "justMyCode": true,
