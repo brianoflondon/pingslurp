@@ -38,7 +38,7 @@ services:
       - ".env"
     # environment:
     #   DB_CONNECTION: "mongodb://mongodb-pp:27017"
-    command: bash -c "python pingslurp.py catchup"
+    command: bash -c "python pingslurp.py --verbose live"
     restart: unless-stopped
     networks:
       - pingslurp

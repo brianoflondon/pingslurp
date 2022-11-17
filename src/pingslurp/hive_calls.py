@@ -208,14 +208,14 @@ def output_status(
             f"Timedelta: {time_delta_str:>20}{hive_string}"
         )
         if pbar:
-            pbar.update(1)
             pbar.desc = output_string
+            pbar.update(1)
         else:
             logging.info(output_string)
-        # if time_delta < timedelta(seconds=0):
-        #     logging.warning(
-        #         f"Clock might be wrong showing a time drift {time_delta}"
-        #     )
+        if time_delta < timedelta(seconds=0):
+            logging.warning(
+                f"Clock might be wrong showing a time drift {time_delta}"
+            )
         counter = 0
     return prev_block_num, counter, blocknum_change
 
@@ -377,5 +377,5 @@ async def insert_and_report_podping(
 ) -> bool:
     pdr = await insert_podping(client, podping)
     if state_options.verbose:
-        logging.info(f"{message:>8} {pdr.insert_result}")
+        tqdm.write(f"{message:>8} {pdr.insert_result}")
     return pdr.podping
