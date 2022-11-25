@@ -100,7 +100,7 @@ async def history_loop(
 
 
 async def live_loop():
-    start_block = await block_at_postion(-1) - 600
+    start_block = get_current_hive_block_num()
     async with asyncio.TaskGroup() as tg:
         live_task = tg.create_task(
             keep_checking_hive_stream(
@@ -116,7 +116,7 @@ async def live_loop():
 async def catchup_loop():
     start_block = await block_at_postion(-1) - int(3600 / 3)
     end_block = get_current_hive_block_num()
-    live_start_block = await block_at_postion(-1)
+    live_start_block = get_current_hive_block_num()
 
     async with asyncio.TaskGroup() as tg:
         live_task = tg.create_task(
