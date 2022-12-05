@@ -60,7 +60,7 @@ async def test_range_extract():
 
 @pytest.mark.asyncio
 async def test_find_big_gaps():
-    ans = await find_big_gaps(time_span=timedelta(hours=1))
+    ans = await find_big_gaps(time_span=timedelta(hours=2))
     date_gaps = []
     for start, end in ans:
         start = get_block_datetime(start)

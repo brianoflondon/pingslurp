@@ -13,6 +13,7 @@ from tqdm.asyncio import tqdm
 from pingslurp.config import Config, StateOptions
 from pingslurp.podping_schemas import Podping
 
+LOG = logging.getLogger(__name__)
 
 def get_mongo_db(collection: str = "all_podpings") -> AsyncIOMotorCollection:
     """Returns the MongoDB"""
@@ -32,9 +33,9 @@ def setup_mongo_db() -> None:
     collection_names = client.list_collection_names()
     if not Config.COLLECTION_NAME in collection_names:
         client.create_collection(Config.COLLECTION_NAME)
-        logging.info(f"DB: {Config.COLLECTION_NAME} created in database")
+        LOG.info(f"DB: {Config.COLLECTION_NAME} created in database")
     else:
-        logging.info(f"DB: {Config.COLLECTION_NAME} already exists in database")
+        LOG.info(f"DB: {Config.COLLECTION_NAME} already exists in database")
 
     # Check/create indexes
     client[Config.COLLECTION_NAME].create_index(
@@ -59,9 +60,9 @@ def setup_mongo_db() -> None:
                 "granularity": "minutes",
             },
         )
-        logging.info(f"DB: {Config.COLLECTION_NAME_META} created in database")
+        LOG.info(f"DB: {Config.COLLECTION_NAME_META} created in database")
     else:
-        logging.info(f"DB: {Config.COLLECTION_NAME_META} already exists in database")
+        LOG.info(f"DB: {Config.COLLECTION_NAME_META} already exists in database")
     if not Config.COLLECTION_NAME_HOSTS in collection_names:
         # Create timeseries collection:
         client.create_collection(
@@ -72,9 +73,9 @@ def setup_mongo_db() -> None:
                 "granularity": "minutes",
             },
         )
-        logging.info(f"DB: {Config.COLLECTION_NAME_HOSTS} created in database")
+        LOG.info(f"DB: {Config.COLLECTION_NAME_HOSTS} created in database")
     else:
-        logging.info(f"DB: {Config.COLLECTION_NAME_HOSTS} already exists in database")
+        LOG.info(f"DB: {Config.COLLECTION_NAME_HOSTS} already exists in database")
 
     return
 
@@ -136,10 +137,10 @@ async def insert_podping(
                 {"trx_id": pp.trx_id, "op_id": pp.op_id}, new_value
             )
         except Exception as ex:
-            logging.error(ex)
+            LOG.error(ex)
     except DuplicateKeyError as ex:
         pdr.podping = False
-        logging.debug(f"Duplicate Key: {pp.trx_id} {pp.op_id}")
+        LOG.debug(f"Duplicate Key: {pp.trx_id} {pp.op_id}")
         meta_result = await update_meta_ts(db_client, pp)
         pdr.hosts_ts = meta_result.hosts_ts
         pdr.meta = meta_result.meta
@@ -167,7 +168,7 @@ async def update_meta_ts(
         ans3 = await db_client[Config.COLLECTION_NAME].update_one(
             {"trx_id": pp.trx_id, "op_id": pp.op_id}, new_value
         )
-        logging.debug(f"Metadata updated for        {pp.trx_id}")
+        LOG.debug(f"Metadata updated for        {pp.trx_id}")
         pdr.meta = True
     if doc and not doc.get("stored_hosts"):
         data_hosts_ts = pp.db_format_hosts_ts()
@@ -179,7 +180,7 @@ async def update_meta_ts(
             ans3 = await db_client[Config.COLLECTION_NAME].update_one(
                 {"trx_id": pp.trx_id, "op_id": pp.op_id}, new_value
             )
-            logging.debug(f"Hosts   updated for        {pp.trx_id}")
+            LOG.debug(f"Hosts   updated for        {pp.trx_id}")
             pdr.hosts_ts = True
 
     return pdr
@@ -263,7 +264,7 @@ async def find_big_gaps(
     last_block = 0
     async for range_block in range_extract(all_blocks_it(collection=db)):
         if range_block[0] - last_block > block_gap_size:
-            logging.debug(f"Big gap at: {range_block}")
+            LOG.debug(f"Big gap at: {range_block}")
             gap = (last_block, range_block[0] - 1)
             big_gaps.append(gap)
         last_block = max(range_block)
@@ -346,14 +347,14 @@ async def database_update(state_options: StateOptions, force_update: bool = Fals
                     all_pdr = await asyncio.gather(*tasks)
                     if state_options.verbose:
                         for pdr in all_pdr:
-                            logging.info(f"{message:>8} {pdr.insert_result}")
+                            LOG.info(f"{message:>8} {pdr.insert_result}")
                     else:
                         pass
-                        # logging.info(f"Scanned up to {pp.block_num}")
+                        # LOG.info(f"Scanned up to {pp.block_num}")
                     tasks = []
     except asyncio.CancelledError as ex:
-        logging.warning("asyncio.CancelledError raised in database_update")
-        logging.warning(f"{ex} {ex.__class__}")
+        LOG.warning("asyncio.CancelledError raised in database_update")
+        LOG.warning(f"{ex} {ex.__class__}")
         raise ex
     except KeyboardInterrupt:
         raise KeyboardInterrupt
@@ -362,9 +363,9 @@ async def database_update(state_options: StateOptions, force_update: bool = Fals
             all_pdr = await asyncio.gather(*tasks)
             if state_options.verbose:
                 for pdr in all_pdr:
-                    logging.info(f"{message:>8} {pdr.insert_result}")
+                    LOG.info(f"{message:>8} {pdr.insert_result}")
             else:
-                logging.info(f"Scanned up to {pp.block_num}")
+                LOG.info(f"Scanned up to {pp.block_num}")
             tasks = []
         except Exception as ex:
-            logging.warning(ex)
+            LOG.warning(ex)

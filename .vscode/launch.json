@@ -13,7 +13,7 @@
             "args": [
                 "scanhistory",
                 "--start-days",
-                "5",
+                "0.5",
                 "--bots",
                 "20"
             ],
@@ -28,7 +28,7 @@
             "program": "${workspaceFolder}/src/pingslurp.py",
             "args": [
                 "--no-verbose",
-                "scanrange", "--start-days", "6", "--end-days", "5.99"
+                "scanrange", "--start-days", "0.5", "--end-days", "0"
             ],
             "console": "integratedTerminal",
             "justMyCode": true,
@@ -50,7 +50,8 @@
             "envFile": "${workspaceFolder}/.env",
             "program": "${workspaceFolder}/src/pingslurp.py",
             "args": [
-                "--no-verbose",
+                // "--no-verbose",
+                "--verbose",
                 "live"
             ],
             "console": "integratedTerminal",
@@ -88,7 +89,7 @@
             "envFile": "${workspaceFolder}/.env",
             "program": "${workspaceFolder}/src/pingslurp.py",
             "args": [
-                "scanblocks", "--start-block", " 69_474_499", "--end-block", "69_476_313"
+                "scanblocks", "--start-block", " 69505924", "--end-block", "69_510_000"
             ],
             "console": "integratedTerminal",
             "justMyCode": true,

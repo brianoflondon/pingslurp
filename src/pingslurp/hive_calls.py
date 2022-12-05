@@ -1,10 +1,12 @@
 import asyncio
 import json
 import logging
+import socket
 import sys
 from datetime import datetime, timedelta
 from timeit import default_timer as timer
 from typing import List, Optional, Set, Tuple
+from urllib.parse import urlparse
 
 import httpx
 from beem import Hive
@@ -43,7 +45,7 @@ class HiveConnectionError(Exception):
 # ]
 
 # MAIN_NODES: List[str] = ["https://rpc.podping.org/"]
-MAIN_NODES: List[str] = [
+BASE_MAIN_NODES: List[str] = [
     "http://hive-witness:8091/",
     "http://cepo-v4vapp:8091/",
     "https://rpc.podping.org/",
@@ -51,10 +53,46 @@ MAIN_NODES: List[str] = [
     "https://api.deathwing.me/",
 ]
 
+# MAIN_NODES: List[str] = ["https://api.fake.openhive.network"]
+
+
+
+
 MAX_HIVE_BATCH_SIZE = 25
 
 OP_NAMES = ["custom_json"]
 HIVE_STATUS_OUTPUT_BLOCKS = 50
+
+
+def check_connection(node: str) -> bool:
+    """
+    Checks all for a network connection
+    """
+    # parse the URL and get the hostname
+    parsed_url = urlparse(node)
+    hostname = parsed_url.hostname
+    port = parsed_url.port
+    if not port:
+        port = 80
+    try:
+        # see if we can resolve the host name -- tells us if there is
+        # a DNS listening
+        host = socket.gethostbyname(hostname)
+        # connect to the host -- tells us if the host is actually reachable
+        s = socket.create_connection((host, port), 2)
+        s.close()
+        return True
+    except Exception:
+        pass  # we ignore any errors, returning False
+
+    return False
+
+
+MAIN_NODES = []
+for node in BASE_MAIN_NODES:
+    if check_connection(node):
+        MAIN_NODES.append(node)
+
 
 
 def seconds_only(time_delta: timedelta) -> timedelta:
@@ -87,21 +125,22 @@ async def verify_hive_connection() -> bool:
     """Scan through all the nodes in use and see if we can get one"""
     # shuffle(MAIN_NODES)
     for node in MAIN_NODES:
-        try:
-            logging.info(f"Checking node: {node}")
-            data = {
-                "jsonrpc": "2.0",
-                "method": "database_api.get_dynamic_global_properties",
-                "params": {},
-                "id": 1,
-            }
-            response = httpx.post(url=node, json=data, timeout=10.0)
-            if response.status_code == 200:
-                return True
-            else:
-                logging.warning("Connection or other Problem")
-        except Exception as ex:
-            logging.error(f"{ex.__class__} on node {node}")
+        if check_connection(node):
+            try:
+                logging.info(f"Checking node: {node}")
+                data = {
+                    "jsonrpc": "2.0",
+                    "method": "database_api.get_dynamic_global_properties",
+                    "params": {},
+                    "id": 1,
+                }
+                response = httpx.post(url=node, json=data, timeout=10.0)
+                if response.status_code == 200:
+                    return True
+                else:
+                    logging.warning("Connection or other Problem")
+            except Exception as ex:
+                logging.error(f"{ex.__class__} on node {node}")
     raise HiveConnectionError("All nodes failing")
 
 
@@ -189,6 +228,7 @@ def output_status(
     message: str = "",
     hive: Hive = "",
     pbar: tqdm_asyncio = None,
+    state_options: StateOptions = None,
 ) -> Tuple[int, int, bool]:
     """Output a status line for the Hive scanner"""
     block_num = hive_post["block_num"]
@@ -197,7 +237,6 @@ def output_status(
         counter += 1
         blocknum_change = True
         prev_block_num = block_num
-        # if counter > HIVE_STATUS_OUTPUT_BLOCKS - 1:
         hive_string = f"| {hive.data.get('last_node')}" if hive else ""
         time_delta = seconds_only(
             datetime.utcnow() - hive_post["timestamp"].replace(tzinfo=None)
@@ -211,12 +250,11 @@ def output_status(
             pbar.desc = output_string
             pbar.update(1)
         else:
-            logging.info(output_string)
+            if counter > HIVE_STATUS_OUTPUT_BLOCKS - 1:
+                logging.info(output_string)
+                counter = 0
         if time_delta < timedelta(seconds=0):
-            logging.warning(
-                f"Clock might be wrong showing a time drift {time_delta}"
-            )
-        counter = 0
+            logging.warning(f"Clock might be wrong showing a time drift {time_delta}")
     return prev_block_num, counter, blocknum_change
 
 
@@ -275,10 +313,7 @@ async def keep_checking_hive_stream(
         else:
             total = get_current_hive_block_num() - start_block
         with tqdm(total=total) as pbar:
-            output_string = (
-                f"{message:>8}Block: {prev_block_num:,} | "
-                f"{'':>59}"
-            )
+            output_string = f"{message:>8}Block: {prev_block_num:,} | " f"{'':>59}"
             pbar.desc = output_string
             try:
                 tasks = []
@@ -290,6 +325,7 @@ async def keep_checking_hive_stream(
                         message=message,
                         hive=hive,
                         pbar=pbar,
+                        state_options=state_options,
                     )
                     if len(tasks) > database_cache:
                         new_pings = await asyncio.gather(*tasks)
@@ -377,5 +413,5 @@ async def insert_and_report_podping(
 ) -> bool:
     pdr = await insert_podping(client, podping)
     if state_options.verbose:
-        tqdm.write(f"{message:>8} {pdr.insert_result}")
+        logging.info(f"{message:>8} {pdr.insert_result}")
     return pdr.podping
