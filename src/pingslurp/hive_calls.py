@@ -25,6 +25,7 @@ from pingslurp.podping_schemas import Podping
 
 state_options = StateOptions()
 
+LOG = logging.getLogger(__name__)
 
 class HiveConnectionError(Exception):
     pass
@@ -112,13 +113,13 @@ async def send_notification_via_api(notify: str, alert_level: int) -> None:
         async with httpx.AsyncClient() as client:
             params = {"notify": notify, "alert_level": alert_level}
             url = local_api_url("send_notification/")
-            logging.debug(url)
-            logging.debug(params)
+            LOG.debug(url)
+            LOG.debug(params)
             ans = await client.get(url=url, params=params, timeout=5)
-            logging.debug(ans.json())
+            LOG.debug(ans.json())
     except Exception as ex:
-        logging.error(ex)
-        logging.error(f"Notification failures: {ex} {ex.__class__}")
+        LOG.error(ex)
+        LOG.error(f"Notification failures: {ex} {ex.__class__}")
 
 
 async def verify_hive_connection() -> bool:
@@ -127,7 +128,7 @@ async def verify_hive_connection() -> bool:
     for node in MAIN_NODES:
         if check_connection(node):
             try:
-                logging.info(f"Checking node: {node}")
+                LOG.info(f"Checking node: {node}")
                 data = {
                     "jsonrpc": "2.0",
                     "method": "database_api.get_dynamic_global_properties",
@@ -138,9 +139,9 @@ async def verify_hive_connection() -> bool:
                 if response.status_code == 200:
                     return True
                 else:
-                    logging.warning("Connection or other Problem")
+                    LOG.warning("Connection or other Problem")
             except Exception as ex:
-                logging.error(f"{ex.__class__} on node {node}")
+                LOG.error(f"{ex.__class__} on node {node}")
     raise HiveConnectionError("All nodes failing")
 
 
@@ -157,7 +158,7 @@ async def get_hive_blockchain() -> Tuple[Hive, Blockchain]:
                     message = (
                         f"Connection to Hive API working again | " f"Failures: {errors}"
                     )
-                    logging.info(message)
+                    LOG.info(message)
                     asyncio.create_task(
                         send_notification_via_api(notify=message, alert_level=5),
                         name="get_hive_blockchain_error_clear_notification",
@@ -168,12 +169,12 @@ async def get_hive_blockchain() -> Tuple[Hive, Blockchain]:
                 raise HiveConnectionError()
 
         except (NumRetriesReached, asyncio.TimeoutError, HiveConnectionError) as ex:
-            logging.error(f"{ex} {ex.__class__}")
+            LOG.error(f"{ex} {ex.__class__}")
             message = (
                 f"Unable to connect to Hive API | "
                 f"Internet connection down? | Failures: {errors}"
             )
-            logging.warning(message)
+            LOG.warning(message)
             asyncio.create_task(
                 send_notification_via_api(notify=message, alert_level=5),
                 name="get_hive_blockchain_error_notification",
@@ -182,7 +183,7 @@ async def get_hive_blockchain() -> Tuple[Hive, Blockchain]:
             errors += 1
 
         except Exception as ex:
-            logging.error(f"{ex}")
+            LOG.error(f"{ex}")
             raise
 
 
@@ -249,12 +250,11 @@ def output_status(
         if pbar:
             pbar.desc = output_string
             pbar.update(1)
-        else:
             if counter > HIVE_STATUS_OUTPUT_BLOCKS - 1:
-                logging.info(output_string)
+                LOG.info(output_string)
                 counter = 0
         if time_delta < timedelta(seconds=0):
-            logging.warning(f"Clock might be wrong showing a time drift {time_delta}")
+            LOG.warning(f"Clock might be wrong showing a time drift {time_delta}")
     return prev_block_num, counter, blocknum_change
 
 
@@ -274,7 +274,7 @@ async def keep_checking_hive_stream(
     try:
         hive, blockchain = await get_hive_blockchain()
     except HiveConnectionError:
-        logging.error("Can't connect to any Hive API Servers")
+        LOG.error("Can't connect to any Hive API Servers")
         await asyncio.sleep(1)
         raise HiveConnectionError("Can't connect to any Hive API Serverr")
 
@@ -302,7 +302,7 @@ async def keep_checking_hive_stream(
         block_num = prev_block_num
         counter = 0
         if block_num:
-            logging.info(
+            LOG.info(
                 f"{message:>8}Starting to scan the chain at Block num: {block_num:,} | "
                 f"Start Date: {start_block_date}"
             )
@@ -349,12 +349,12 @@ async def keep_checking_hive_stream(
                                 )
                             )
                         except ValidationError as ex:
-                            logging.error(
+                            LOG.error(
                                 f"ValidationError | {post.get('trx_id')} | {post.get('block_num')}"
                             )
-                            logging.error(json.dumps(post, indent=2, default=str))
-                            logging.error([post["json"]])
-                            logging.error(ex)
+                            LOG.error(json.dumps(post, indent=2, default=str))
+                            LOG.error([post["json"]])
+                            LOG.error(ex)
 
                     if post["block_num"] > end_block:
                         break
@@ -366,16 +366,16 @@ async def keep_checking_hive_stream(
                     ),
                     name="keep_checking_hive_error_notification",
                 )
-                logging.error(f"Exception in Pingslurp  {ex}")
-                logging.exception(ex)
-                logging.warning(f"Last good block: {prev_block_num:,}")
+                LOG.error(f"Exception in Pingslurp  {ex}")
+                LOG.exception(ex)
+                LOG.warning(f"Last good block: {prev_block_num:,}")
                 await asyncio.sleep(10)
                 prev_block_num -= 20
             except asyncio.CancelledError as ex:
-                logging.warning(
+                LOG.warning(
                     "asyncio.CancelledError raised in keep_checking_hive_stream"
                 )
-                logging.debug(f"{ex} {ex.__class__}")
+                LOG.debug(f"{ex} {ex.__class__}")
                 raise ex
             except KeyboardInterrupt:
                 raise KeyboardInterrupt
@@ -385,7 +385,7 @@ async def keep_checking_hive_stream(
                     count_new += new_pings.count(True)
                     tasks = []
                 except Exception as ex:
-                    logging.debug(ex)
+                    LOG.debug(ex)
                 duration = timer() - timer_start
                 if end_block == sys.maxsize:
                     end_block = prev_block_num
@@ -398,7 +398,7 @@ async def keep_checking_hive_stream(
                     f"Block time: {seconds_only(block_duration)} | "
                     f"Speedup: {(block_duration.total_seconds() / duration):.1f}"
                 )
-                logging.debug(ret_message)
+                LOG.debug(ret_message)
                 return (
                     prev_block_num,
                     ret_message,
@@ -413,5 +413,5 @@ async def insert_and_report_podping(
 ) -> bool:
     pdr = await insert_podping(client, podping)
     if state_options.verbose:
-        logging.info(f"{message:>8} {pdr.insert_result}")
+        LOG.info(f"{message:>8} {pdr.insert_result}")
     return pdr.podping
