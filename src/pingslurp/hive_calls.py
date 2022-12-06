@@ -224,6 +224,8 @@ def get_block_num(
 
 def output_status(
     hive_post: dict,
+    count_new: int,
+    count_blocks: int,
     prev_block_num: int,
     counter: int,
     message: str = "",
@@ -242,9 +244,13 @@ def output_status(
         time_delta = seconds_only(
             datetime.utcnow() - hive_post["timestamp"].replace(tzinfo=None)
         )
+        # Change message if we are catching up
+        if time_delta.total_seconds() > 5 and message.startswith("LIVE"):
+            message = "---> | "
         time_delta_str = f"{time_delta}"
         output_string = (
-            f"{message:>8}Block: {block_num:,} | "
+            f"{message:>8}Block: {block_num:,} {count_blocks:>8,}| "
+            f"Pings: {count_new:>6,} | "
             f"Timedelta: {time_delta_str:>20}{hive_string}"
         )
         if pbar:
@@ -290,6 +296,7 @@ async def keep_checking_hive_stream(
         start_block = prev_block_num
     start_block_date = get_block_datetime(prev_block_num)
     count_new = 0
+    count_blocks = 0
     while True:
         stream = sync_to_async_iterable(
             blockchain.stream(
@@ -313,13 +320,15 @@ async def keep_checking_hive_stream(
         else:
             total = get_current_hive_block_num() - start_block
         with tqdm(total=total) as pbar:
-            output_string = f"{message:>8}Block: {prev_block_num:,} | " f"{'':>59}"
-            pbar.desc = output_string
+            # output_string = f"{message:>8}Block: {prev_block_num:,} | Pings: {count_new:>10,} | " f"{'':>59}"
+            # pbar.desc = output_string
             try:
                 tasks = []
                 async for post in stream:
                     prev_block_num, counter, block_num_change = output_status(
                         post,
+                        count_new,
+                        count_blocks,
                         prev_block_num,
                         counter,
                         message=message,
@@ -327,6 +336,8 @@ async def keep_checking_hive_stream(
                         pbar=pbar,
                         state_options=state_options,
                     )
+                    if block_num_change:
+                        count_blocks += 1
                     if len(tasks) > database_cache:
                         new_pings = await asyncio.gather(*tasks)
                         count_new += new_pings.count(True)

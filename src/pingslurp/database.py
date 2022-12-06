@@ -98,8 +98,8 @@ class PodpingDatabaseResult:
 
         return (
             f"{p_txt:<18} | "
-            f"New Md {m_txt:<5} | "
-            f"New Hs {h_txt:<5} | "
+            f"Md {m_txt:<1} | "
+            f"Hs {h_txt:<1} | "
             f"{self.trx_id} | {self.block_num} | {self.required_posting_auths}"
         )
 
