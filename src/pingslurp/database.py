@@ -93,13 +93,13 @@ class PodpingDatabaseResult:
     @property
     def insert_result(self) -> str:
         p_txt = "NEW Podping" if self.podping else "DUPLICATE Podping"
-        m_txt = "Yes" if self.meta else "No"
-        h_txt = "Yes" if self.hosts_ts else "No"
+        m_txt = "✅" if self.meta else "🅾️"
+        h_txt = "✅" if self.hosts_ts else "🅾️"
 
         return (
             f"{p_txt:<18} | "
-            f"New Metadata {m_txt:<5} | "
-            f"New Hosts {h_txt:<5} | "
+            f"New Md {m_txt:<5} | "
+            f"New Hs {h_txt:<5} | "
             f"{self.trx_id} | {self.block_num} | {self.required_posting_auths}"
         )
 
