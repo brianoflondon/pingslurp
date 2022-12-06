@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from timeit import default_timer as timer
 from typing import List, Optional, Set, Tuple
 from urllib.parse import urlparse
-
+from random import shuffle
 import httpx
 from beem import Hive
 from beem.block import BlockHeader
@@ -52,6 +52,7 @@ BASE_MAIN_NODES: List[str] = [
     "https://rpc.podping.org/",
     "https://api.hive.blog/",
     "https://api.deathwing.me/",
+    "https://hive-api.arcange.eu",
 ]
 
 # MAIN_NODES: List[str] = ["https://api.fake.openhive.network"]
@@ -92,6 +93,7 @@ def check_connection(node: str) -> bool:
 MAIN_NODES = []
 for node in BASE_MAIN_NODES:
     if check_connection(node):
+        print(node)
         MAIN_NODES.append(node)
 
 
@@ -148,9 +150,11 @@ async def verify_hive_connection() -> bool:
 async def get_hive_blockchain() -> Tuple[Hive, Blockchain]:
     """Wrap getting the blockchain in error catching code"""
     errors = 0
+    shuffle(MAIN_NODES)
     while True:
         try:
-            test = await asyncio.wait_for(verify_hive_connection(), timeout=30.0)
+            test = True
+            # test = await asyncio.wait_for(verify_hive_connection(), timeout=30.0)
             if test:
                 hive = Hive(node=MAIN_NODES)
                 blockchain = Blockchain(blockchain_instance=hive, mode="head")
@@ -207,20 +211,20 @@ def get_block_num(
     time_delta: Optional[timedelta] = None,
     date_time: Optional[datetime] = None,
 ) -> int:
-    """Return the starting block"""
+    """Return the starting block, if input is none or 0's current block
+    number is returned"""
     if start_block:
-        prev_block_num = start_block
-        return prev_block_num
-    elif time_delta:
+        return start_block
+
+    temp_blockchain = Blockchain()
+    if time_delta:
         start_time = datetime.utcnow() - time_delta
-        temp_blockchain = Blockchain()
         prev_block_num = temp_blockchain.get_estimated_block_num(start_time)
         return prev_block_num
     elif date_time:
-        temp_blockchain = Blockchain()
         prev_block_num = temp_blockchain.get_estimated_block_num(date_time)
         return prev_block_num
-
+    return temp_blockchain.get_current_block_num()
 
 def output_status(
     hive_post: dict,
@@ -240,7 +244,8 @@ def output_status(
         counter += 1
         blocknum_change = True
         prev_block_num = block_num
-        hive_string = f"| {hive.data.get('last_node')}" if hive else ""
+        rpc_domain = urlparse(hive.data.get('last_node'))
+        hive_string = f"| {rpc_domain.hostname}" if hive else ""
         time_delta = seconds_only(
             datetime.utcnow() - hive_post["timestamp"].replace(tzinfo=None)
         )
@@ -251,12 +256,12 @@ def output_status(
         output_string = (
             f"{message:>8}Block: {block_num:,} {count_blocks:>8,}| "
             f"Pings: {count_new:>6,} | "
-            f"Timedelta: {time_delta_str:>20}{hive_string}"
+            f"Timedelta: {time_delta_str:>20}{hive_string:<25}"
         )
         if pbar:
             pbar.desc = output_string
             pbar.update(1)
-            if counter > HIVE_STATUS_OUTPUT_BLOCKS - 1:
+            if counter > HIVE_STATUS_OUTPUT_BLOCKS - 1 and state_options.verbose:
                 LOG.info(output_string)
                 counter = 0
         if time_delta < timedelta(seconds=0):
@@ -402,12 +407,14 @@ async def keep_checking_hive_stream(
                     end_block = prev_block_num
                 end_block_date = get_block_datetime(end_block)
                 block_duration = end_block_date - start_block_date
+                rpc_domain = urlparse(hive.data.get('last_node'))
                 ret_message = (
                     f"{message:>8}Scanned from {start_block} to {end_block}. "
-                    f"Finished scanning at {prev_block_num}. New Pings: {count_new} | "
-                    f"Time to scan: {seconds_only(timedelta(seconds=duration))} | "
+                    f"Fin {prev_block_num}. New Pings: {count_new} | "
+                    f"Time: {seconds_only(timedelta(seconds=duration))} | "
                     f"Block time: {seconds_only(block_duration)} | "
-                    f"Speedup: {(block_duration.total_seconds() / duration):.1f}"
+                    f"Speedup: {(block_duration.total_seconds() / duration):.1f} | "
+                    f"{rpc_domain.hostname}"
                 )
                 LOG.debug(ret_message)
                 return (

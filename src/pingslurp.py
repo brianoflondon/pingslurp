@@ -177,7 +177,8 @@ async def scan_history_loop(start_days: float, bots: int = 20, end_days: float =
     if end_days is None:
         end_block = await block_at_postion(0) + 6
     else:
-        end_block = get_current_hive_block_num()
+        end_time_delta = timedelta(days=end_days)
+        end_block = get_block_num(time_delta=end_time_delta)
     if start_block > end_block:
         LOG.info("Aborting: trying to start history scan within the current database.")
         return

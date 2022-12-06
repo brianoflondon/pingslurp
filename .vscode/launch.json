@@ -28,7 +28,7 @@
             "program": "${workspaceFolder}/src/pingslurp.py",
             "args": [
                 "--no-verbose",
-                "scanrange", "--start-days", "0.5", "--end-days", "0"
+                "scanrange", "--start-days", "0.01", "--end-days", "0", "--bots", "10"
             ],
             "console": "integratedTerminal",
             "justMyCode": true,
