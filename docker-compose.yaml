@@ -7,7 +7,7 @@ services:
     image: brianoflondon/pingslurp:1.4.0
     # build:
     #   context: .
-      dockerfile: Dockerfile
+    #   dockerfile: Dockerfile
     logging:
       driver: "json-file"
       options:
@@ -22,6 +22,16 @@ services:
     networks:
       - pingslurp
       - hive-network
+
+volumes:
+  mongodb-pingslurp-data:
+    driver: local
+
+networks:
+  pingslurp:
+  hive-network:
+    external: true
+
 
   # pingslurp-fillgaps:
   #   container_name: pingslurp-fillgaps
@@ -64,12 +74,3 @@ services:
   #         max-size: "2m"
   #   networks:
   #     - pingslurp
-
-volumes:
-  mongodb-pingslurp-data:
-    driver: local
-
-networks:
-  pingslurp:
-  hive-network:
-    external: true
