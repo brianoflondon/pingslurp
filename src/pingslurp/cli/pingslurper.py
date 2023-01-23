@@ -340,7 +340,7 @@ LOG = logging.getLogger(__name__)
 if __name__ == "__main__":
     logging.basicConfig(level=LOG.info)
     with logging_redirect_tqdm():
-        LOG.info(f"Starting up Pingslurp version {__version__}")
+        LOG.info(f"Starting up Pingslurper version {__version__}")
         app()
 
 # typer.run(main)
