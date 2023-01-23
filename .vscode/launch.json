@@ -9,7 +9,7 @@
             "type": "python",
             "request": "launch",
             "envFile": "${workspaceFolder}/.env",
-            "program": "${workspaceFolder}/src/pingslurp.py",
+            "program": "${workspaceFolder}/cli/pingslurper.py",
             "args": [
                 "scanhistory",
                 "--start-days",
@@ -25,7 +25,7 @@
             "type": "python",
             "request": "launch",
             "envFile": "${workspaceFolder}/.env",
-            "program": "${workspaceFolder}/src/pingslurp.py",
+            "program": "${workspaceFolder}/cli/pingslurper.py",
             "args": [
                 "--no-verbose",
                 "scanrange", "--start-days", "0.01", "--end-days", "0", "--bots", "10"
@@ -38,7 +38,7 @@
             "type": "python",
             "request": "launch",
             "envFile": "${workspaceFolder}/.env",
-            "program": "${workspaceFolder}/src/pingslurp.py",
+            "program": "${workspaceFolder}/cli/pingslurper.py",
             "args": ["catchup"],
             "console": "integratedTerminal",
             "justMyCode": true,
@@ -48,7 +48,7 @@
             "type": "python",
             "request": "launch",
             "envFile": "${workspaceFolder}/.env",
-            "program": "${workspaceFolder}/src/pingslurp.py",
+            "program": "${workspaceFolder}/cli/pingslurper.py",
             "args": [
                 // "--no-verbose",
                 "--verbose",
@@ -62,7 +62,7 @@
             "type": "python",
             "request": "launch",
             "envFile": "${workspaceFolder}/.env",
-            "program": "${workspaceFolder}/src/pingslurp.py",
+            "program": "${workspaceFolder}/cli/pingslurper.py",
             "args": [
                 "--no-verbose",
                 "fillgaps"
@@ -75,7 +75,7 @@
             "type": "python",
             "request": "launch",
             "envFile": "${workspaceFolder}/.env",
-            "program": "${workspaceFolder}/src/pingslurp.py",
+            "program": "${workspaceFolder}/src/cli/pingslurper.py",
             "args": [
                 "check"
             ],
@@ -87,7 +87,7 @@
             "type": "python",
             "request": "launch",
             "envFile": "${workspaceFolder}/.env",
-            "program": "${workspaceFolder}/src/pingslurp.py",
+            "program": "${workspaceFolder}/cli/pingslurper.py",
             "args": [
                 "scanblocks", "--start-block", " 69505924", "--end-block", "69_510_000"
             ],
@@ -99,7 +99,7 @@
             "type": "python",
             "request": "launch",
             "envFile": "${workspaceFolder}/.env",
-            "program": "${workspaceFolder}/src/pingslurp.py",
+            "program": "${workspaceFolder}/cli/pingslurper.py",
             "args": [
                 "--no-verbose",
                 "databaseupdate",

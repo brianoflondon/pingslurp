@@ -17,3 +17,7 @@ RUN apt update && apt install -y freetds-dev && rm -rf /var/lib/apt/lists/*
 RUN poetry install --only main
 
 COPY ./src /app/
+
+ENV PATH="/home/pingslurp/app/.venv/bin:${PATH}"
+
+# ENTRYPOINT ["pingslurper"]
