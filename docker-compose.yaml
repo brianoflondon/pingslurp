@@ -2,32 +2,11 @@ version: '3'
 
 services:
 
-  # mongodb:
-  #   container_name: mongodb-pp
-  #   hostname: mongodb-pp
-  #   image: mongo:latest
-  #   env_file:
-  #     - ".env"
-  #   ports:
-  #     - "${LOCAL_TAILSCALE_IP}:27017:27017"
-  #     - "127.0.1.1:27017:27017"
-  #     - "127.0.0.1:27017:27017"
-  #   # command: mongod --bind_ip localhost,${LOCAL_TAILSCALE_NAME} --replSet v4vapp-repl
-  #   volumes:
-  #     - mongodb-pingslurp-data:/data/db
-  #   restart: always
-  #   logging:
-  #     driver: "json-file"
-  #     options:
-  #         max-file: "2"
-  #         max-size: "2m"
-  #   networks:
-  #     - pingslurp
-
   pingslurp:
     container_name: pingslurp
-    build:
-      context: .
+    image: brianoflondon/pingslurp:1.4.0
+    # build:
+    #   context: .
       dockerfile: Dockerfile
     logging:
       driver: "json-file"
@@ -64,6 +43,27 @@ services:
   #     - pingslurp
   #     - hive-network
 
+  # mongodb:
+  #   container_name: mongodb-pp
+  #   hostname: mongodb-pp
+  #   image: mongo:latest
+  #   env_file:
+  #     - ".env"
+  #   ports:
+  #     - "${LOCAL_TAILSCALE_IP}:27017:27017"
+  #     - "127.0.1.1:27017:27017"
+  #     - "127.0.0.1:27017:27017"
+  #   # command: mongod --bind_ip localhost,${LOCAL_TAILSCALE_NAME} --replSet v4vapp-repl
+  #   volumes:
+  #     - mongodb-pingslurp-data:/data/db
+  #   restart: always
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #         max-file: "2"
+  #         max-size: "2m"
+  #   networks:
+  #     - pingslurp
 
 volumes:
   mongodb-pingslurp-data:
