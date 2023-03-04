@@ -84,6 +84,7 @@ known_hosts: dict[str, str] = {
     "Transistor": r".*transistor.fm\/.*",
     "Podserve": r".*podserve.fm\/.*",
     "Captivate": r".*captivate.fm\/.*",
+    "redcircle.com": r".*redcircle.com\/.*",
     "Feedlayer": r".*feedlayer.com\/.*",
     "3speak": r".*3speak.tv\/.*",
     "Newsradio1620": r".*newsradio1620.com\/.*",
