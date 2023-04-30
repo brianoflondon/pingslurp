@@ -4,6 +4,7 @@ import re
 from datetime import datetime
 from enum import Enum, auto
 from typing import Any, List, Literal, Optional
+import httpx
 
 from pydantic import BaseModel, validator
 
@@ -84,6 +85,7 @@ known_hosts: dict[str, str] = {
     "Transistor": r".*transistor.fm\/.*",
     "Podserve": r".*podserve.fm\/.*",
     "Captivate": r".*captivate.fm\/.*",
+    "Acast": r".*rss.acast.com\/.*",
     "redcircle.com": r".*redcircle.com\/.*",
     "Feedlayer": r".*feedlayer.com\/.*",
     "3speak": r".*3speak.tv\/.*",
@@ -94,6 +96,14 @@ known_hosts: dict[str, str] = {
     "example.com": r".*example.com\/.*",
     # "Other": r".*",
 }
+
+# resp = httpx.get('https://raw.githubusercontent.com/Podcastindex-org/podping/main/README.md')
+# if resp.status_code == 200:
+#     st.markdown(resp.text, unsafe_allow_html=True)
+
+# with open("known_hosts.json","r") as f:
+#     known_hosts_json = json.load(f)
+
 
 all_hosts = ""
 for host in known_hosts.values():

@@ -75,7 +75,7 @@
             "type": "python",
             "request": "launch",
             "envFile": "${workspaceFolder}/.env",
-            "program": "${workspaceFolder}/src/cli/pingslurper.py",
+            "program": "${workspaceFolder}/src/pingslurp/cli/pingslurper.py",
             "args": [
                 "check"
             ],

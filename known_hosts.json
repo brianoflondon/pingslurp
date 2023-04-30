@@ -1,0 +1,16 @@
+{
+    "Buzzsprout": ".*buzzsprout.com\\\\/.*",
+    "RSS.com": ".*rss.com\\\\/.*",
+    "Transistor": ".*transistor.fm\\\\/.*",
+    "Podserve": ".*podserve.fm\\\\/.*",
+    "Captivate": ".*captivate.fm\\\\/.*",
+    "Acast": ".*rss.acast.com\\\\/.*",
+    "redcircle.com": ".*redcircle.com\\\\/.*",
+    "Feedlayer": ".*feedlayer.com\\\\/.*",
+    "3speak": ".*3speak.tv\\\\/.*",
+    "Newsradio1620": ".*newsradio1620.com\\\\/.*",
+    "StrivingForEternity": ".*strivingforeternity.org\\\\/.*",
+    "Heliumradio": ".*heliumradio.com\\\\/.*",
+    "Blubrry": ".*blubrry.com\\\\/.*",
+    "example.com": ".*example.com\\\\/.*"
+}
