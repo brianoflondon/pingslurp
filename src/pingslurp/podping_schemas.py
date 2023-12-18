@@ -4,8 +4,8 @@ import re
 from datetime import datetime
 from enum import Enum, auto
 from typing import Any, List, Literal, Optional
-import httpx
 
+import httpx
 from pydantic import BaseModel, validator
 
 
