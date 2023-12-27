@@ -4,10 +4,11 @@ import logging
 import socket
 import sys
 from datetime import datetime, timedelta
+from random import shuffle
 from timeit import default_timer as timer
 from typing import List, Optional, Set, Tuple
 from urllib.parse import urlparse
-from random import shuffle
+
 import httpx
 from beem import Hive
 from beem.block import BlockHeader
@@ -51,7 +52,7 @@ BASE_MAIN_NODES: List[str] = [
     "http://cepo-v4vapp:8091/",
     "https://rpc.podping.org/",
     "https://api.hive.blog/",
-    "https://api.deathwing.me/",
+    # "https://api.deathwing.me/",
     "https://hive-api.arcange.eu",
 ]
 
