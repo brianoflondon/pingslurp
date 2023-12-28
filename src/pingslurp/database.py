@@ -1,19 +1,21 @@
 import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import AsyncIterator, List, Set, Tuple
 
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
 from pymongo import ASCENDING, DESCENDING, MongoClient
 from pymongo.errors import DuplicateKeyError, OperationFailure
+from pytz import utc
 from tqdm.asyncio import tqdm
 
 from pingslurp.config import Config, StateOptions
 from pingslurp.podping_schemas import Podping
 
 LOG = logging.getLogger(__name__)
+
 
 def get_mongo_db(collection: str = "all_podpings") -> AsyncIOMotorCollection:
     """Returns the MongoDB"""
@@ -60,6 +62,9 @@ def setup_mongo_db() -> None:
                 "granularity": "minutes",
             },
         )
+        # client[Config.COLLECTION_NAME_META].create_index(
+        #     "expireAt", expireAfterSeconds=60 * 60 * 24 * 180
+        # )
         LOG.info(f"DB: {Config.COLLECTION_NAME_META} created in database")
     else:
         LOG.info(f"DB: {Config.COLLECTION_NAME_META} already exists in database")
@@ -73,6 +78,9 @@ def setup_mongo_db() -> None:
                 "granularity": "minutes",
             },
         )
+        # client[Config.COLLECTION_NAME_HOSTS].create_index(
+        #     "expireAt", expireAfterSeconds=60 * 60 * 24 * 180
+        # )
         LOG.info(f"DB: {Config.COLLECTION_NAME_HOSTS} created in database")
     else:
         LOG.info(f"DB: {Config.COLLECTION_NAME_HOSTS} already exists in database")
@@ -322,6 +330,39 @@ async def clear_meta_data():
     setup_mongo_db()
 
 
+async def expire_old_data(days: int, check: bool = True):
+    """
+    Expires old data from the database
+    if check is True, it will check and return the number of documents that
+    that will be deleted.
+    """
+    date_ago = datetime.now(tz=utc) - timedelta(days=days)
+    filter = {"timestamp": {"$lt": date_ago}}
+    result = {}
+    for col in [
+        Config.COLLECTION_NAME,
+        # Config.COLLECTION_NAME_META,
+        # Config.COLLECTION_NAME_HOSTS,
+    ]:
+        collection = get_mongo_db(col)
+        # find the oldest record in the collection
+        oldest = await collection.find_one(
+            {}, {"timestamp": 1}, sort=[("timestamp", 1)]
+        )
+        LOG.info(f"Oldest record in {col} is {oldest['timestamp']}")
+        # which how many days ago was that?
+        oldest_date = oldest["timestamp"].replace(tzinfo=utc)
+        days_ago = datetime.now(tz=utc) - oldest_date
+        LOG.info(f"Days ago: {days_ago.days}")
+        check_result = await collection.count_documents(filter)
+        result[col] = check_result
+        LOG.info(f"Documents to be deleted in {col}: {check_result}")
+        if not check:
+            delete_result = await collection.delete_many(filter)
+            result[col] = delete_result
+    return result
+
+
 async def database_update(state_options: StateOptions, force_update: bool = False):
     """Updates the Database scanning for all missing metadata and filling it in"""
     if force_update:
@@ -329,9 +370,7 @@ async def database_update(state_options: StateOptions, force_update: bool = Fals
     client = get_mongo_client()
     collection = client[Config.COLLECTION_NAME]
     filter = {"$or": [{"stored_meta": None}, {"stored_hosts": None}]}
-    cursor = collection.find(
-        filter, {"_id": 0}
-    )
+    cursor = collection.find(filter, {"_id": 0})
     total = await collection.count_documents(filter)
     message = "DATABASE"
     tasks = []

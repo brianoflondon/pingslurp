@@ -5,6 +5,21 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "expireold pingslurp",
+            "type": "python",
+            "request": "launch",
+            "envFile": "${workspaceFolder}/.env",
+            "program": "${workspaceFolder}/src/pingslurp/cli/pingslurper.py",
+            "args": [
+                "expireold",
+                "--days-old",
+                "180",
+                "--no-check",
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true,
+        },
+        {
             "name": "scanhistory pingslurp",
             "type": "python",
             "request": "launch",
@@ -13,7 +28,7 @@
             "args": [
                 "scanhistory",
                 "--start-days",
-                "1",
+                "15",
                 "--bots",
                 "20"
             ],
@@ -28,7 +43,13 @@
             "program": "${workspaceFolder}/src/pingslurp/cli/pingslurper.py",
             "args": [
                 "--no-verbose",
-                "scanrange", "--start-days", "0.01", "--end-days", "0", "--bots", "10"
+                "scanrange",
+                "--start-days",
+                "0.01",
+                "--end-days",
+                "0",
+                "--bots",
+                "10"
             ],
             "console": "integratedTerminal",
             "justMyCode": true,
@@ -39,7 +60,9 @@
             "request": "launch",
             "envFile": "${workspaceFolder}/.env",
             "program": "${workspaceFolder}/src/pingslurp/cli/pingslurper.py",
-            "args": ["catchup"],
+            "args": [
+                "catchup"
+            ],
             "console": "integratedTerminal",
             "justMyCode": true,
         },
@@ -89,7 +112,11 @@
             "envFile": "${workspaceFolder}/.env",
             "program": "${workspaceFolder}/src/pingslurp/cli/pingslurper.py",
             "args": [
-                "scanblocks", "--start-block", " 69505924", "--end-block", "69_510_000"
+                "scanblocks",
+                "--start-block",
+                " 69505924",
+                "--end-block",
+                "69_510_000"
             ],
             "console": "integratedTerminal",
             "justMyCode": true,
@@ -103,7 +130,7 @@
             "args": [
                 "--no-verbose",
                 "databaseupdate",
-                // "--force-update",
+                "--force-update",
             ],
             "console": "integratedTerminal",
             "justMyCode": true,

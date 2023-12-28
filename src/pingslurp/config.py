@@ -14,14 +14,14 @@ logging.basicConfig(
 
 
 class Config:
-
     load_dotenv()
 
-    DB_CONNECTION = os.getenv("DB_CONNECTION")
-    ROOT_DB_NAME = os.getenv("ROOT_DB_NAME")
+    DB_CONNECTION = os.getenv("DB_CONNECTION", "")
+    ROOT_DB_NAME = os.getenv("ROOT_DB_NAME", "")
     COLLECTION_NAME = "all_podpings"
     COLLECTION_NAME_META = "meta_ts"
     COLLECTION_NAME_HOSTS = "hosts_ts"
 
-class StateOptions():
+
+class StateOptions:
     verbose: bool = False
