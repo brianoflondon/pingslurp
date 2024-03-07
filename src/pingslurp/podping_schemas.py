@@ -2,10 +2,9 @@ import json
 import logging
 import re
 from datetime import datetime
-from enum import Enum, auto
-from typing import Any, List, Literal, Optional
+from enum import Enum,
+from typing import Any, List
 
-import httpx
 from pydantic import BaseModel, validator
 
 

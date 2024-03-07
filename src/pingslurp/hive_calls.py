@@ -6,13 +6,13 @@ import sys
 from datetime import datetime, timedelta
 from random import shuffle
 from timeit import default_timer as timer
-from typing import List, Optional, Set, Tuple
+from typing import List, Optional, Tuple
 from urllib.parse import urlparse
 
 import httpx
 from beem import Hive
-from beem.block import BlockHeader
-from beem.blockchain import Blockchain
+from beem.block import BlockHeader  # Type: ignore
+from beem.blockchain import Blockchain  # Type : ignore
 from beemapi.exceptions import NumRetriesReached
 from httpx import URL
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -27,6 +27,7 @@ from pingslurp.podping_schemas import Podping
 state_options = StateOptions()
 
 LOG = logging.getLogger(__name__)
+
 
 class HiveConnectionError(Exception):
     pass
@@ -57,8 +58,6 @@ BASE_MAIN_NODES: List[str] = [
 ]
 
 # MAIN_NODES: List[str] = ["https://api.fake.openhive.network"]
-
-
 
 
 MAX_HIVE_BATCH_SIZE = 25
@@ -96,7 +95,6 @@ for node in BASE_MAIN_NODES:
     if check_connection(node):
         print(node)
         MAIN_NODES.append(node)
-
 
 
 def seconds_only(time_delta: timedelta) -> timedelta:
@@ -227,6 +225,7 @@ def get_block_num(
         return prev_block_num
     return temp_blockchain.get_current_block_num()
 
+
 def output_status(
     hive_post: dict,
     count_new: int,
@@ -245,7 +244,7 @@ def output_status(
         counter += 1
         blocknum_change = True
         prev_block_num = block_num
-        rpc_domain = urlparse(hive.data.get('last_node'))
+        rpc_domain = urlparse(hive.data.get("last_node"))
         hive_string = f"| {rpc_domain.hostname}" if hive else ""
         time_delta = seconds_only(
             datetime.utcnow() - hive_post["timestamp"].replace(tzinfo=None)
@@ -408,7 +407,7 @@ async def keep_checking_hive_stream(
                     end_block = prev_block_num
                 end_block_date = get_block_datetime(end_block)
                 block_duration = end_block_date - start_block_date
-                rpc_domain = urlparse(hive.data.get('last_node'))
+                rpc_domain = urlparse(hive.data.get("last_node"))
                 ret_message = (
                     f"{message:>8}Scanned from {start_block} to {end_block}. "
                     f"Fin {prev_block_num}. New Pings: {count_new} | "
