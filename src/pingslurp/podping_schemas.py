@@ -2,10 +2,9 @@ import json
 import logging
 import re
 from datetime import datetime
-from enum import Enum, auto
-from typing import Any, List, Literal, Optional
+from enum import Enum,
+from typing import Any, List
 
-import httpx
 from pydantic import BaseModel, validator
 
 
@@ -83,6 +82,7 @@ class PodpingMeta(BaseModel):
 known_hosts: dict[str, str] = {
     "Buzzsprout": r".*buzzsprout.com\/.*",
     "RSS.com": r".*rss.com\/.*",
+    "Spreaker": r".*spreaker.com\/.*",
     "Transistor": r".*transistor.fm\/.*",
     "Podserve": r".*podserve.fm\/.*",
     "Captivate": r".*captivate.fm\/.*",

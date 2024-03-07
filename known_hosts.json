@@ -12,5 +12,6 @@
     "StrivingForEternity": ".*strivingforeternity.org\\\\/.*",
     "Heliumradio": ".*heliumradio.com\\\\/.*",
     "Blubrry": ".*blubrry.com\\\\/.*",
+    "Spreaker": ".*spreaker.com\\\\/.*",
     "example.com": ".*example.com\\\\/.*"
 }
