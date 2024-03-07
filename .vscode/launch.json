@@ -5,21 +5,6 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "expireold pingslurp",
-            "type": "python",
-            "request": "launch",
-            "envFile": "${workspaceFolder}/.env",
-            "program": "${workspaceFolder}/src/pingslurp/cli/pingslurper.py",
-            "args": [
-                "expireold",
-                "--days-old",
-                "180",
-                "--no-check",
-            ],
-            "console": "integratedTerminal",
-            "justMyCode": true,
-        },
-        {
             "name": "scanhistory pingslurp",
             "type": "python",
             "request": "launch",
@@ -130,7 +115,22 @@
             "args": [
                 "--no-verbose",
                 "databaseupdate",
-                "--force-update",
+                // "--force-update",
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true,
+        },
+        {
+            "name": "expireold pingslurp",
+            "type": "python",
+            "request": "launch",
+            "envFile": "${workspaceFolder}/.env",
+            "program": "${workspaceFolder}/src/pingslurp/cli/pingslurper.py",
+            "args": [
+                "expireold",
+                "--days-old",
+                "90",
+                "--no-check",
             ],
             "console": "integratedTerminal",
             "justMyCode": true,

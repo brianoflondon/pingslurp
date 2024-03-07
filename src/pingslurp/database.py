@@ -125,6 +125,7 @@ async def insert_podping(
         required_posting_auths=pp.required_posting_auths,
     )
     try:
+        # Trap error here if timeout. pymongo.errors.NetworkTimeout:
         ans = await db_client[Config.COLLECTION_NAME].insert_one(data)
         pdr.podping = True
         # if we have a new podping, store its metadata
@@ -337,14 +338,18 @@ async def expire_old_data(days: int, check: bool = True):
     that will be deleted.
     """
     date_ago = datetime.now(tz=utc) - timedelta(days=days)
-    filter = {"timestamp": {"$lt": date_ago}}
     result = {}
     for col in [
+        Config.COLLECTION_NAME_META,
+        Config.COLLECTION_NAME_HOSTS,
         Config.COLLECTION_NAME,
-        # Config.COLLECTION_NAME_META,
-        # Config.COLLECTION_NAME_HOSTS,
     ]:
         collection = get_mongo_db(col)
+        if "_ts" in col:
+            filter = get_filter(metadata=True, date_ago=date_ago)
+        else:
+            filter = get_filter(metadata=False, date_ago=date_ago)
+
         # find the oldest record in the collection
         oldest = await collection.find_one(
             {}, {"timestamp": 1}, sort=[("timestamp", 1)]
@@ -358,9 +363,21 @@ async def expire_old_data(days: int, check: bool = True):
         result[col] = check_result
         LOG.info(f"Documents to be deleted in {col}: {check_result}")
         if not check:
-            delete_result = await collection.delete_many(filter)
-            result[col] = delete_result
+            try:
+                delete_result = await collection.delete_many(filter)
+                result[col] = delete_result
+            except Exception as ex:
+                LOG.error(ex)
     return result
+
+
+def get_filter(metadata: bool, date_ago: datetime):
+    """Returns the filter for the database query"""
+    if metadata:
+        filter = {"metadata.timestamp": {"$lt": date_ago}}
+    else:
+        filter = {"timestamp": {"$lt": date_ago}}
+    return filter
 
 
 async def database_update(state_options: StateOptions, force_update: bool = False):

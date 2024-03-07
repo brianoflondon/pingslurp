@@ -76,6 +76,7 @@ class PodpingMeta(BaseModel):
             "metadata": {"posting_auth": self.required_posting_auths[0], "id": self.id},
             "json_size": self.json_size,
             "num_iris": self.num_iris,
+            "timestamp": self.timestamp,
         }
 
 
@@ -183,7 +184,7 @@ class Podping(HiveTrx, PodpingMeta, BaseModel):
         ans = []
         for iri in self.iris:
             db = {
-                "metadata": {"host": iri.host},
+                "metadata": {"host": iri.host, "timestamp": self.timestamp},
                 "timestamp": self.timestamp,
                 "iri": iri,
                 "trx_id": self.trx_id,
