@@ -6,7 +6,7 @@
     "configurations": [
         {
             "name": "scanhistory pingslurp",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "envFile": "${workspaceFolder}/.env",
             "program": "${workspaceFolder}/src/pingslurp/cli/pingslurper.py",
@@ -22,7 +22,7 @@
         },
         {
             "name": "scanrange pingslurp",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "envFile": "${workspaceFolder}/.env",
             "program": "${workspaceFolder}/src/pingslurp/cli/pingslurper.py",
@@ -35,7 +35,7 @@
         },
         {
             "name": "catchup pingslurp",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "envFile": "${workspaceFolder}/.env",
             "program": "${workspaceFolder}/src/pingslurp/cli/pingslurper.py",
@@ -45,7 +45,7 @@
         },
         {
             "name": "live pingslurp",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "envFile": "${workspaceFolder}/.env",
             "program": "${workspaceFolder}/src/pingslurp/cli/pingslurper.py",
@@ -59,7 +59,7 @@
         },
         {
             "name": "fillgaps pingslurp ",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "envFile": "${workspaceFolder}/.env",
             "program": "${workspaceFolder}/src/pingslurp/cli/pingslurper.py",
@@ -72,7 +72,7 @@
         },
         {
             "name": "check pingslurp",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "envFile": "${workspaceFolder}/.env",
             "program": "${workspaceFolder}/src/pingslurp/cli/pingslurper.py",
@@ -84,7 +84,7 @@
         },
         {
             "name": "scanblocks pingslurp",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "envFile": "${workspaceFolder}/.env",
             "program": "${workspaceFolder}/src/pingslurp/cli/pingslurper.py",
@@ -96,7 +96,7 @@
         },
         {
             "name": "databaseupdate pingslurp",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "envFile": "${workspaceFolder}/.env",
             "program": "${workspaceFolder}/src/pingslurp/cli/pingslurper.py",
