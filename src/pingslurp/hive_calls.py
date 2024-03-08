@@ -10,7 +10,7 @@ from typing import List, Optional, Tuple
 from urllib.parse import urlparse
 
 import httpx
-from beem import Hive
+from beem import Hive  # Type: ignore
 from beem.block import BlockHeader  # Type: ignore
 from beem.blockchain import Blockchain  # Type : ignore
 from beemapi.exceptions import NumRetriesReached
@@ -53,11 +53,15 @@ BASE_MAIN_NODES: List[str] = [
     "http://cepo-v4vapp:8091/",
     "https://rpc.podping.org/",
     "https://api.hive.blog/",
-    # "https://api.deathwing.me/",
+    "https://api.deathwing.me/",
     "https://hive-api.arcange.eu",
+    "https://api.openhive.network",
+    "https://hived.emere.sh",
+    "https://techcoderx.com",
+    "https://anyx.io",
 ]
 
-# MAIN_NODES: List[str] = ["https://api.fake.openhive.network"]
+MAIN_NODES: List[str] = []
 
 
 MAX_HIVE_BATCH_SIZE = 25
@@ -88,14 +92,6 @@ def check_connection(node: str) -> bool:
         pass  # we ignore any errors, returning False
 
     return False
-
-
-MAIN_NODES = []
-for node in BASE_MAIN_NODES:
-    if check_connection(node):
-        print(node)
-        MAIN_NODES.append(node)
-
 
 def seconds_only(time_delta: timedelta) -> timedelta:
     """Strip out microseconds"""
@@ -148,6 +144,12 @@ async def verify_hive_connection() -> bool:
 
 async def get_hive_blockchain() -> Tuple[Hive, Blockchain]:
     """Wrap getting the blockchain in error catching code"""
+    if not MAIN_NODES:
+        for node in BASE_MAIN_NODES:
+            if check_connection(node):
+                LOG.info(f"Adding node: {node}")
+                MAIN_NODES.append(node)
+
     errors = 0
     shuffle(MAIN_NODES)
     while True:
@@ -270,11 +272,11 @@ def output_status(
 
 
 async def keep_checking_hive_stream(
-    start_block: Optional[int] = None,
-    time_delta: Optional[timedelta] = None,
-    end_block: Optional[int] = sys.maxsize,
-    message: Optional[str] = "",
-    database_cache: Optional[int] = 0,
+    start_block: int = None,
+    time_delta: timedelta = None,
+    end_block: int = sys.maxsize,
+    message: str = "",
+    database_cache: int = 0,
     state_options: StateOptions = state_options,
 ) -> Tuple[int, str]:
     """
@@ -325,8 +327,6 @@ async def keep_checking_hive_stream(
         else:
             total = get_current_hive_block_num() - start_block
         with tqdm(total=total) as pbar:
-            # output_string = f"{message:>8}Block: {prev_block_num:,} | Pings: {count_new:>10,} | " f"{'':>59}"
-            # pbar.desc = output_string
             try:
                 tasks = []
                 async for post in stream:
@@ -364,6 +364,7 @@ async def keep_checking_hive_stream(
                                     client, podping, message, state_options
                                 )
                             )
+                            tasks.append(report_iris(podping, state_options))
                         except ValidationError as ex:
                             LOG.error(
                                 f"ValidationError | {post.get('trx_id')} | {post.get('block_num')}"
@@ -433,3 +434,10 @@ async def insert_and_report_podping(
     if state_options.verbose:
         LOG.info(f"{message:>8} {pdr.insert_result}")
     return pdr.podping
+
+
+async def report_iris(podping: Podping, state_options: StateOptions):
+    """Report the iris in a podping"""
+    if state_options.just_iris:
+        for iri in podping.iris:
+            print(f"{iri}")

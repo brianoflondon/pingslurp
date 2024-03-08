@@ -15,6 +15,7 @@ from pingslurp.podping_schemas import Podping
 
 LOG = logging.getLogger(__name__)
 
+
 def get_mongo_db(collection: str = "all_podpings") -> AsyncIOMotorCollection:
     """Returns the MongoDB"""
     return AsyncIOMotorClient(Config.DB_CONNECTION)[Config.ROOT_DB_NAME][collection]
@@ -329,9 +330,7 @@ async def database_update(state_options: StateOptions, force_update: bool = Fals
     client = get_mongo_client()
     collection = client[Config.COLLECTION_NAME]
     filter = {"$or": [{"stored_meta": None}, {"stored_hosts": None}]}
-    cursor = collection.find(
-        filter, {"_id": 0}
-    )
+    cursor = collection.find(filter, {"_id": 0})
     total = await collection.count_documents(filter)
     message = "DATABASE"
     tasks = []

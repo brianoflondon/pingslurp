@@ -23,5 +23,7 @@ class Config:
     COLLECTION_NAME_META = "meta_ts"
     COLLECTION_NAME_HOSTS = "hosts_ts"
 
-class StateOptions():
+
+class StateOptions:
     verbose: bool = False
+    just_iris: bool = False

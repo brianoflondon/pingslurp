@@ -2,7 +2,7 @@ import json
 import logging
 import re
 from datetime import datetime
-from enum import Enum,
+from enum import Enum
 from typing import Any, List
 
 from pydantic import BaseModel, validator
