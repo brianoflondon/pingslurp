@@ -228,12 +228,19 @@ def run_main_loop(task: Coroutine):
 def main(
     verbose: bool = typer.Option(
         False, help="Show verbose output including logging every ping"
-    )
+    ),
+    just_iris: bool = typer.Option(
+        False, help="""Just show the IRIs from the pingslurp database.
+        Sends stream of iris to the `stdout`
+        Diagnostic information is sent to `stderr`"""
+    ),
 ):
     """
     Manage users in the awesome CLI app.
     """
     state_options.verbose = verbose
+    state_options.just_iris = just_iris
+
     if verbose:
         LOG.info("Using Verbose output")
     setup_mongo_db()
@@ -373,9 +380,10 @@ def expireold(
 
 
 LOG = logging.getLogger(__name__)
+handler = logging.StreamHandler(sys.stderr)
+LOG.addHandler(handler)
 
 if __name__ == "__main__":
-    logging.basicConfig(level=LOG.info)
     with logging_redirect_tqdm():
         LOG.info(f"Starting up Pingslurper version {__version__}")
         if len(sys.argv) == 1:  # no command provided

@@ -25,3 +25,4 @@ class Config:
 
 class StateOptions:
     verbose: bool = False
+    just_iris: bool = False

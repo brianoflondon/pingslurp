@@ -66,6 +66,20 @@
             "justMyCode": true,
         },
         {
+         "name": "live pingslurp just_iri",
+            "type": "debugpy",
+            "request": "launch",
+            "envFile": "${workspaceFolder}/.env",
+            "program": "${workspaceFolder}/src/pingslurp/cli/pingslurper.py",
+            "args": [
+                // "--no-verbose",
+                "--just-iris",
+                "live"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true,
+        },
+        {
             "name": "fillgaps pingslurp ",
             "type": "debugpy",
             "request": "launch",
