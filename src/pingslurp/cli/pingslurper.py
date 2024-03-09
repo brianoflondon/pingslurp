@@ -8,7 +8,6 @@ from typing import Coroutine, List, Optional, Tuple
 import typer
 from motor.motor_asyncio import AsyncIOMotorCollection
 from rich import print
-from tqdm import trange
 from tqdm.contrib.logging import logging_redirect_tqdm
 
 from pingslurp import __version__
@@ -20,6 +19,7 @@ from pingslurp.database import (
     find_big_gaps,
     get_mongo_db,
     is_empty,
+    expire_old_data,
     setup_mongo_db,
 )
 from pingslurp.hive_calls import (
@@ -30,6 +30,7 @@ from pingslurp.hive_calls import (
 )
 
 app = typer.Typer(help="Slurping up Podpings with Pingslurp")
+
 DATABASE_CACHE = 100
 
 state_options = StateOptions()
@@ -59,6 +60,7 @@ async def setup_check_database(time_span: timedelta = None):
     setup_mongo_db()
     time_span = timedelta(seconds=360) if not time_span else time_span
     LOG.info(f"Using database at {Config.DB_CONNECTION}")
+    LOG.info(f"Version: {__version__}")
     empty = await is_empty(all_blocks_it())
     if empty:
         print("Databse is empty")
@@ -198,6 +200,13 @@ async def scan_history_loop(start_days: float, bots: int = 20, end_days: float =
     LOG.info(block_gaps)
     await fillgaps_loop(block_gaps=block_gaps)
 
+async def expire_old(days: int, check: bool = True):
+    """Expire old entries"""
+    check_result = await expire_old_data(days=days, check=check)
+    LOG.info(f"Expired {check_result} entries")
+
+
+
 
 def run_main_loop(task: Coroutine):
     try:
@@ -321,18 +330,46 @@ def scanhistory(
 @app.command()
 def databaseupdate(
     force_update: Optional[bool] = typer.Option(
-        False, help="Delete and overwriter the timeseries collections"
+        False, help="Delete and overwrite the timeseries collections"
     )
 ):
     """
     Goes through the entire database makes sure the meta data timeseries collections are
     complete with a record for each podping. Does not fetch new Podpings from Hive.
     """
+    if force_update is None:
+        force_update = False
     if force_update:
         are_you_sure = typer.confirm("Are you sure you want to delete all metadata?")
         if not are_you_sure:
             raise typer.Abort()
     run_main_loop(database_update(state_options, force_update))
+
+
+@app.command()
+def expireold(
+    days_old: Optional[int] = typer.Option(
+        180, help="Expire entries older than this many days (default 180 days)"
+    ),
+    check: Optional[bool] = typer.Option(
+        True, help="Checks for expired entries but does not delete"
+    ),
+):
+    """
+    Expire entries that are older than a certain number of days.
+    """
+    # Your implementation here
+    if check is None:
+        check = True
+    if days_old is None:
+        days_old = 180
+    if check:
+        LOG.info(f"Checking for entries older than {days_old} days")
+    else:
+        LOG.info(f"Expiring entries older than {days_old} days")
+    run_main_loop(expire_old(days_old, check))
+
+    # expire_old_entries(days_old)  # hypothetical function, implement as needed
 
 
 LOG = logging.getLogger(__name__)
@@ -341,6 +378,8 @@ if __name__ == "__main__":
     logging.basicConfig(level=LOG.info)
     with logging_redirect_tqdm():
         LOG.info(f"Starting up Pingslurper version {__version__}")
+        if len(sys.argv) == 1:  # no command provided
+            sys.argv.append("--help")  # add --help to arguments
         app()
 
 # typer.run(main)
