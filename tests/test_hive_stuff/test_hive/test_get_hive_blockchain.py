@@ -20,6 +20,7 @@ async def test_verify_hive_connection():
         working = await verify_hive_connection()
         assert working
     except Exception as e:
+        print(e)
         assert False
 
 

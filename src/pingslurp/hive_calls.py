@@ -122,7 +122,7 @@ async def send_notification_via_api(notify: str, alert_level: int) -> None:
 async def verify_hive_connection() -> bool:
     """Scan through all the nodes in use and see if we can get one"""
     # shuffle(MAIN_NODES)
-    for node in MAIN_NODES:
+    for node in BASE_MAIN_NODES:
         if check_connection(node):
             try:
                 LOG.info(f"Checking node: {node}")
