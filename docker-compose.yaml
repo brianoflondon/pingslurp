@@ -4,7 +4,7 @@ services:
 
   pingslurp:
     container_name: pingslurp
-    image: brianoflondon/pingslurp:1.8.0
+    image: brianoflondon/pingslurp:1.8.1
     # build:
     #   context: .
     #   dockerfile: Dockerfile
