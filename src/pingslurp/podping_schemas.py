@@ -24,7 +24,10 @@ class PodpingMediums(str, Enum):
     audiobookL = "audiobookL"
     newsletterL = "newsletterL"
     blogL = "blogL"
-
+    publisher = "publisher"
+    publisherL = "publisherL"
+    course = "course"
+    courseL = "courseL"
 
 class PodpingReasons(str, Enum):
     update = "update"
@@ -158,6 +161,8 @@ class Podping(HiveTrx, PodpingMeta, BaseModel):
                 super().__init__(**data)
 
         except Exception as ex:
+            logging.error(data)
+            logging.error(custom_json)
             logging.exception(ex)
 
     @validator("iris")
