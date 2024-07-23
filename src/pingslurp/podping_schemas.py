@@ -95,6 +95,7 @@ known_hosts: dict[str, str] = {
     "StrivingForEternity": r".*strivingforeternity.org\/.*",
     "Heliumradio": r".*heliumradio.com\/.*",
     "Blubrry": r".*blubrry.com\/.*",
+    "Podhome": r".*podhome.fm\/.*",
     "example.com": r".*example.com\/.*",
     # "Other": r".*",
 }
