@@ -147,6 +147,7 @@ async def get_hive_blockchain() -> Tuple[Hive, Blockchain]:
     """Wrap getting the blockchain in error catching code"""
     if not MAIN_NODES:
         for node in BASE_MAIN_NODES:
+            LOG.info(f"Checking node: {node}")
             if check_connection(node):
                 LOG.info(f"Adding node: {node}")
                 MAIN_NODES.append(node)
