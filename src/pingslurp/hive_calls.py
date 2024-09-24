@@ -49,7 +49,7 @@ class HiveConnectionError(Exception):
 
 # MAIN_NODES: List[str] = ["https://rpc.podping.org/"]
 BASE_MAIN_NODES: List[str] = [
-    "http://127.0.1.1:8091/"
+    "http://127.0.1.1:8091/",
     "http://fox-v4vapp:8091/",
     "http://cepo-v4vapp:8091/",
     "https://rpc.podping.org/",
