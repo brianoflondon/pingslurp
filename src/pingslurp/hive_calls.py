@@ -49,7 +49,7 @@ class HiveConnectionError(Exception):
 
 # MAIN_NODES: List[str] = ["https://rpc.podping.org/"]
 BASE_MAIN_NODES: List[str] = [
-    "http://hive-witness:8091/",
+    "http://fox-v4vapp:8091/",
     "http://cepo-v4vapp:8091/",
     "https://rpc.podping.org/",
     "https://api.hive.blog/",
@@ -92,6 +92,7 @@ def check_connection(node: str) -> bool:
         pass  # we ignore any errors, returning False
 
     return False
+
 
 def seconds_only(time_delta: timedelta) -> timedelta:
     """Strip out microseconds"""
@@ -151,7 +152,7 @@ async def get_hive_blockchain() -> Tuple[Hive, Blockchain]:
                 MAIN_NODES.append(node)
 
     errors = 0
-    shuffle(MAIN_NODES)
+    # shuffle(MAIN_NODES)
     while True:
         try:
             test = True
