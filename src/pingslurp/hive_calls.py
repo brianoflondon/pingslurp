@@ -88,7 +88,9 @@ def check_connection(node: str) -> bool:
         s = socket.create_connection((host, port), 2)
         s.close()
         return True
-    except Exception:
+    except Exception as ex:
+        print(f"Failed to connect to {node}")
+        print(f"Error: {ex}")
         pass  # we ignore any errors, returning False
 
     return False
