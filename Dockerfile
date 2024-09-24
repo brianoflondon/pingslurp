@@ -14,7 +14,7 @@ WORKDIR  /app/
 # needed for pymssql to install in 3.11
 RUN apt update && apt install -y freetds-dev && rm -rf /var/lib/apt/lists/*
 
-RUN poetry install --only main
+RUN poetry install --only main --no-root
 
 COPY ./src /app/
 
