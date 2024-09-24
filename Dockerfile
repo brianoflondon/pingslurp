@@ -18,6 +18,8 @@ RUN poetry install --only main --no-root
 
 COPY ./src /app/
 
+RUN poetry install --no-dev
+
 ENV PATH="/home/pingslurp/app/.venv/bin:${PATH}"
 
 # ENTRYPOINT ["pingslurper"]
