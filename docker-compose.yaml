@@ -2,7 +2,7 @@ services:
 
   pingslurp:
     container_name: pingslurp
-    image: brianoflondon/pingslurp:1.9.0
+    image: brianoflondon/pingslurp:1.9.1
     # build:
     #   context: .
     #   dockerfile: Dockerfile
@@ -19,7 +19,7 @@ services:
     restart: unless-stopped
     networks:
       - pingslurp
-      - hive-network
+      # - hive-network
 
 volumes:
   mongodb-pingslurp-data:
@@ -27,8 +27,8 @@ volumes:
 
 networks:
   pingslurp:
-  hive-network:
-    external: true
+  # hive-network:
+  #   external: true
 
 
   # pingslurp-fillgaps:
