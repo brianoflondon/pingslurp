@@ -22,4 +22,5 @@ RUN poetry install --no-dev
 
 ENV PATH="/home/pingslurp/app/.venv/bin:${PATH}"
 
-# ENTRYPOINT ["pingslurper"]
+# Set the entry point
+ENTRYPOINT ["poetry", "run", "pingslurper"]
