@@ -59,7 +59,7 @@ async def setup_check_database(time_span: timedelta = None):
     """Check if we have a database and return stuff"""
     setup_mongo_db()
     time_span = timedelta(seconds=360) if not time_span else time_span
-    LOG.info(f"Using database at {Config.DB_CONNECTION[:10]}")
+    LOG.info(f"Using database at {Config.DB_CONNECTION[-15:]}")
     LOG.info(f"Version: {__version__}")
     empty = await is_empty(all_blocks_it())
     if empty:
