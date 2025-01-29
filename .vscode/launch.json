@@ -136,7 +136,7 @@
         },
         {
             "name": "expireold pingslurp",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "envFile": "${workspaceFolder}/.env",
             "program": "${workspaceFolder}/src/pingslurp/cli/pingslurper.py",

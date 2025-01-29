@@ -40,14 +40,26 @@ def setup_mongo_db() -> None:
         LOG.info(f"DB: {Config.COLLECTION_NAME} already exists in database")
 
     # Check/create indexes
+    index_name = "trx_id_1_op_id_1"
+    indexes = client[Config.COLLECTION_NAME].list_indexes()
+
+    # Check if the index already exists
+    index_exists = any(index["name"] == index_name for index in indexes)
+
+    if not index_exists:
+        client[Config.COLLECTION_NAME].create_index(
+            [("trx_id", ASCENDING), ("op_id", ASCENDING)],
+            name=index_name,
+            unique=True,
+            background=True,
+        )
     client[Config.COLLECTION_NAME].create_index(
-        [("trx_id", ASCENDING), ("op_id", ASCENDING)],
-        name="trx_id_1_op_id_1",
-        unique=True,
+        [("block_num", ASCENDING)], background=True
     )
-    client[Config.COLLECTION_NAME].create_index([("block_num", ASCENDING)])
-    client[Config.COLLECTION_NAME].create_index([("timestamp", DESCENDING)])
-    client[Config.COLLECTION_NAME].create_index([("iris", ASCENDING)])
+    client[Config.COLLECTION_NAME].create_index(
+        [("timestamp", DESCENDING)], background=True
+    )
+    client[Config.COLLECTION_NAME].create_index([("iris", ASCENDING)], background=True)
     try:
         client[Config.COLLECTION_NAME].drop_index(index_or_name="trx_id")
     except OperationFailure as ex:
