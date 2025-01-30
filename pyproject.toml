@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pingslurp"
-version = "1.9.3"
+version = "1.9.4"
 description = "Keeping up with the Podpings"
 authors = ["Brian of London <brian@podping.org>"]
 license = "MIT"
