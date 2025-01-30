@@ -14,11 +14,11 @@ WORKDIR  /app/
 # needed for pymssql to install in 3.11
 RUN apt update && apt install -y freetds-dev && rm -rf /var/lib/apt/lists/*
 
-RUN poetry install --only main --no-root
+RUN poetry install --only main --no-root --without dev
 
 COPY ./src /app/
 
-RUN poetry install --no-dev
+RUN poetry install --without dev
 
 ENV PATH="/home/pingslurp/app/.venv/bin:${PATH}"
 
