@@ -1,5 +1,4 @@
 services:
-
   pingslurp:
     container_name: pingslurp
     image: brianoflondon/pingslurp:latest
@@ -9,8 +8,8 @@ services:
     logging:
       driver: "json-file"
       options:
-          max-file: "2"
-          max-size: "2m"
+        max-file: "2"
+        max-size: "2m"
     env_file:
       - ".env"
     # environment:
@@ -23,9 +22,9 @@ services:
     networks:
       - repl-mongo_default
 
-  networks:
-    repl-mongo_default:
-      external: true
+networks:
+  repl-mongo_default:
+    external: true
 
-    extra_hosts:
-      - "gad-v4vapp.tail400e5.ts.net:100.85.133.47"
+extra_hosts:
+  - "gad-v4vapp.tail400e5.ts.net:100.85.133.47"
