@@ -21,7 +21,7 @@ services:
     dns:
       - 100.100.100.100
     networks:
-      repl-mongo_default
+      - repl-mongo_default
 
   networks:
     repl-mongo_default:
