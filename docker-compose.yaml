@@ -22,6 +22,9 @@ services:
     networks:
       - repl-mongo_default
 
+# If running on the same network as the MongoDB container
+# need to put this container on that network
+
 networks:
   repl-mongo_default:
     external: true
