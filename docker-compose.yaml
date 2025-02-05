@@ -25,6 +25,3 @@ services:
 networks:
   repl-mongo_default:
     external: true
-
-extra_hosts:
-  - "gad-v4vapp.tail400e5.ts.net:100.85.133.47"
