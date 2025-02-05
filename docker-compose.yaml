@@ -17,8 +17,8 @@ services:
     command: bash -c "poetry run pingslurper --verbose live"
     # command: ["--verbose", "live"]
     restart: unless-stopped
-    dns:
-      - 100.100.100.100
+    # dns:
+    #   - 100.100.100.100
     networks:
       - repl-mongo_default
 
