@@ -28,6 +28,7 @@ from pingslurp.hive_calls import (
     get_current_hive_block_num,
     keep_checking_hive_stream,
 )
+from pingslurp.host_check import check_hosts
 
 app = typer.Typer(help="Slurping up Podpings with Pingslurp")
 
@@ -59,7 +60,13 @@ async def setup_check_database(time_span: timedelta = None):
     """Check if we have a database and return stuff"""
     setup_mongo_db()
     time_span = timedelta(seconds=360) if not time_span else time_span
-    LOG.info(f"Using database at {Config.DB_CONNECTION[-15:]}")
+    await check_hosts()
+    try:
+        db = get_mongo_db()
+        hosts = db.database.client.host
+        LOG.info(f"Using database at {hosts}")
+    except Exception as ex:
+        LOG.warning(f"Could not connect to database: {ex}")
     LOG.info(f"Version: {__version__}")
     empty = await is_empty(all_blocks_it())
     if empty:
@@ -200,12 +207,11 @@ async def scan_history_loop(start_days: float, bots: int = 20, end_days: float =
     LOG.info(block_gaps)
     await fillgaps_loop(block_gaps=block_gaps)
 
+
 async def expire_old(days: int, check: bool = True):
     """Expire old entries"""
     check_result = await expire_old_data(days=days, check=check)
     LOG.info(f"Expired {check_result} entries")
-
-
 
 
 def run_main_loop(task: Coroutine):
@@ -230,9 +236,10 @@ def main(
         False, help="Show verbose output including logging every ping"
     ),
     just_iris: bool = typer.Option(
-        False, help="""Just show the IRIs from the pingslurp database.
+        False,
+        help="""Just show the IRIs from the pingslurp database.
         Sends stream of iris to the `stdout`
-        Diagnostic information is sent to `stderr`"""
+        Diagnostic information is sent to `stderr`""",
     ),
 ):
     """
