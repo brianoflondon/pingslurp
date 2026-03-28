@@ -21,6 +21,7 @@ class Config:
     COLLECTION_NAME = "all_podpings"
     COLLECTION_NAME_META = "meta_ts"
     COLLECTION_NAME_HOSTS = "hosts_ts"
+    TTL_SECONDS = 15820800
 
 
 class StateOptions:

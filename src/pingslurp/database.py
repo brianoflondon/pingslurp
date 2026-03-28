@@ -26,77 +26,100 @@ def get_mongo_client() -> AsyncIOMotorClient:
 
 
 def setup_mongo_db() -> None:
-    """Check if the DB exists and set it up if needed. Returns number of new DBs"""
-    count = 0
-    # db.all_podpings.updateMany({op_id: null}, { $set: { op_id: 1 }})
-    # this command run in mongoshell to add op_id to all records 2022-11-07
-    client = MongoClient(Config.DB_CONNECTION)[Config.ROOT_DB_NAME]
-    collection_names = client.list_collection_names()
-    if not Config.COLLECTION_NAME in collection_names:
-        client.create_collection(Config.COLLECTION_NAME)
-        LOG.info(f"DB: {Config.COLLECTION_NAME} created in database")
-    else:
-        LOG.info(f"DB: {Config.COLLECTION_NAME} already exists in database")
-
-    # Check/create indexes
-    index_name = "trx_id_1_op_id_1"
-    indexes = client[Config.COLLECTION_NAME].list_indexes()
-
-    # Check if the index already exists
-    index_exists = any(index["name"] == index_name for index in indexes)
-
-    if not index_exists:
-        client[Config.COLLECTION_NAME].create_index(
-            [("trx_id", ASCENDING), ("op_id", ASCENDING)],
-            name=index_name,
-            unique=True,
-            background=True,
-        )
-    client[Config.COLLECTION_NAME].create_index(
-        [("block_num", ASCENDING)], background=True
-    )
-    client[Config.COLLECTION_NAME].create_index(
-        [("timestamp", DESCENDING)], background=True
-    )
-    client[Config.COLLECTION_NAME].create_index([("iris", ASCENDING)], background=True)
+    """Check if the DB exists and set it up if needed."""
     try:
-        client[Config.COLLECTION_NAME].drop_index(index_or_name="trx_id")
-    except OperationFailure as ex:
-        pass
-    if not Config.COLLECTION_NAME_META in collection_names:
-        # Create timeseries collection:
-        client.create_collection(
-            Config.COLLECTION_NAME_META,
-            timeseries={
-                "timeField": "timestamp",
-                "metaField": "metadata",
-                "granularity": "minutes",
-            },
-        )
-        # client[Config.COLLECTION_NAME_META].create_index(
-        #     "expireAt", expireAfterSeconds=60 * 60 * 24 * 180
-        # )
-        LOG.info(f"DB: {Config.COLLECTION_NAME_META} created in database")
-    else:
-        LOG.info(f"DB: {Config.COLLECTION_NAME_META} already exists in database")
-    if not Config.COLLECTION_NAME_HOSTS in collection_names:
-        # Create timeseries collection:
-        client.create_collection(
-            Config.COLLECTION_NAME_HOSTS,
-            timeseries={
-                "timeField": "timestamp",
-                "metaField": "metadata",
-                "granularity": "minutes",
-            },
-        )
-        # client[Config.COLLECTION_NAME_HOSTS].create_index(
-        #     "expireAt", expireAfterSeconds=60 * 60 * 24 * 180
-        # )
-        LOG.info(f"DB: {Config.COLLECTION_NAME_HOSTS} created in database")
-    else:
-        LOG.info(f"DB: {Config.COLLECTION_NAME_HOSTS} already exists in database")
+        db = MongoClient(Config.DB_CONNECTION)[Config.ROOT_DB_NAME]
+        collection = db[Config.COLLECTION_NAME]
 
-    return
+        # === Regular Collection Setup ===
+        collection_names = db.list_collection_names()
+
+        if Config.COLLECTION_NAME not in collection_names:
+            db.create_collection(Config.COLLECTION_NAME)
+            LOG.info(f"DB: {Config.COLLECTION_NAME} created")
+        else:
+            LOG.info(f"DB: {Config.COLLECTION_NAME} already exists")
+
+        # --- Indexes for main collection ---
+
+        # 1. Unique compound index
+        index_name = "trx_id_1_op_id_1"
+        if not any(idx["name"] == index_name for idx in collection.list_indexes()):
+            collection.create_index(
+                [("trx_id", ASCENDING), ("op_id", ASCENDING)],
+                name=index_name,
+                unique=True,
+                background=True,
+            )
+            LOG.info(f"Created unique index: {index_name}")
+
+        # 2. block_num index
+        collection.create_index([("block_num", ASCENDING)], background=True)
+
+        # 3. TTL index on timestamp (this replaces the old descending index)
+        try:
+            ttl_index_name = "timestamp_ttl"
+            collection.create_index(
+                [("timestamp", DESCENDING)],  # or ASCENDING - doesn't matter for TTL
+                name=ttl_index_name,
+                expireAfterSeconds=Config.TTL_SECONDS,  # <-- GLOBAL PARAMETER
+                background=True,
+            )
+            LOG.info(
+                f"Created TTL index '{ttl_index_name}' with expireAfterSeconds={Config.TTL_SECONDS}"
+            )
+        except OperationFailure as e:
+            if e.code == 85:  # IndexOptionsConflict
+                LOG.warning(
+                    "TTL index already exists with different options. Consider dropping and recreating if needed."
+                )
+                # Optional: auto-fix by dropping old index (uncomment if you want aggressive fix)
+                # collection.drop_index("timestamp_-1")   # or whatever the conflicting name is
+                # collection.drop_index("ttl-timestamp-15820800-seconds")
+            else:
+                LOG.error(f"Failed to create TTL index: {e}")
+                # Don't raise - let setup continue
+
+        # 4. iris index
+        collection.create_index([("iris", ASCENDING)], background=True)
+
+        # Cleanup old leftover index if it still exists
+        try:
+            collection.drop_index("trx_id")
+        except OperationFailure:
+            pass  # index doesn't exist - that's fine
+
+        # === Timeseries Collections ===
+        for coll_name in [Config.COLLECTION_NAME_META, Config.COLLECTION_NAME_HOSTS]:
+            if coll_name not in collection_names:
+                db.create_collection(
+                    coll_name,
+                    timeseries={
+                        "timeField": "timestamp",
+                        "metaField": "metadata",
+                        "granularity": "minutes",
+                    },
+                )
+                LOG.info(f"Created timeseries collection: {coll_name}")
+            else:
+                LOG.info(f"Timeseries collection already exists: {coll_name}")
+
+            # Optional: Add TTL to timeseries collections too (if desired)
+            # try:
+            #     db[coll_name].create_index(
+            #         [("timestamp", ASCENDING)],
+            #         expireAfterSeconds=Config.TTL_SECONDS,
+            #         background=True
+            #     )
+            # except OperationFailure:
+            #     pass
+
+        LOG.info("MongoDB setup completed successfully")
+        return
+
+    except Exception as e:
+        LOG.error(f"Critical error during MongoDB setup: {e}", exc_info=True)
+        raise  # or handle gracefully depending on your startup policy
 
 
 @dataclass
@@ -123,9 +146,7 @@ class PodpingDatabaseResult:
         )
 
 
-async def insert_podping(
-    db_client: AsyncIOMotorClient, pp: Podping
-) -> PodpingDatabaseResult:
+async def insert_podping(db_client: AsyncIOMotorClient, pp: Podping) -> PodpingDatabaseResult:
     """Put a podping in the database, returns True if new podping was inserted
     False if duplicate."""
     data = pp.db_format()
@@ -142,15 +163,13 @@ async def insert_podping(
         # if we have a new podping, store its metadata
         try:
             data_meta = pp.db_format_meta()
-            meta_ts_ins = await db_client[Config.COLLECTION_NAME_META].insert_one(
-                data_meta
-            )
+            meta_ts_ins = await db_client[Config.COLLECTION_NAME_META].insert_one(data_meta)
             pdr.meta = True
             data_hosts_ts = pp.db_format_hosts_ts()
             if data_hosts_ts:
-                hosts_ts_ins = await db_client[
-                    Config.COLLECTION_NAME_HOSTS
-                ].insert_many([host for host in data_hosts_ts])
+                hosts_ts_ins = await db_client[Config.COLLECTION_NAME_HOSTS].insert_many(
+                    [host for host in data_hosts_ts]
+                )
                 pdr.hosts_ts = True
             new_value = {"$set": {"stored_meta": True, "stored_hosts": True}}
             podpings_update = await db_client[Config.COLLECTION_NAME].update_one(
@@ -158,7 +177,7 @@ async def insert_podping(
             )
         except Exception as ex:
             LOG.error(ex)
-    except DuplicateKeyError as ex:
+    except DuplicateKeyError:
         pdr.podping = False
         LOG.debug(f"Duplicate Key: {pp.trx_id} {pp.op_id}")
         meta_result = await update_meta_ts(db_client, pp)
@@ -168,9 +187,7 @@ async def insert_podping(
     return pdr
 
 
-async def update_meta_ts(
-    db_client: AsyncIOMotorClient, pp: Podping
-) -> PodpingDatabaseResult:
+async def update_meta_ts(db_client: AsyncIOMotorClient, pp: Podping) -> PodpingDatabaseResult:
     """Run the update to meta timeseries if we are adding to existing database"""
     doc = await db_client[Config.COLLECTION_NAME].find_one(
         {"trx_id": pp.trx_id, "op_id": pp.op_id}, {"stored_meta": 1, "stored_hosts": 1}
@@ -206,9 +223,7 @@ async def update_meta_ts(
     return pdr
 
 
-async def block_at_postion(
-    position=1, collection: AsyncIOMotorCollection = None
-) -> int:
+async def block_at_postion(position=1, collection: AsyncIOMotorCollection = None) -> int:
     """
     Returns the block at the given position in the database
     0 is the first block, -1 is the last block.
@@ -235,9 +250,7 @@ async def all_blocks(collection: AsyncIOMotorCollection = None) -> List:
     highest"""
     if collection is None:
         collection = get_mongo_db()
-    cursor = collection.find({}, {"block_num": 1}, allow_disk_use=True).sort(
-        [("block_num", 1)]
-    )
+    cursor = collection.find({}, {"block_num": 1}, allow_disk_use=True).sort([("block_num", 1)])
     ans = list()
     async for doc in cursor:
         ans.append(doc["block_num"])
@@ -251,9 +264,7 @@ async def all_blocks_it(
     highest"""
     if collection is None:
         collection = get_mongo_db()
-    cursor = collection.find({}, {"block_num": 1}, allow_disk_use=True).sort(
-        [("block_num", 1)]
-    )
+    cursor = collection.find({}, {"block_num": 1}, allow_disk_use=True).sort([("block_num", 1)])
     async for doc in cursor:
         yield doc["block_num"]
 
@@ -362,9 +373,7 @@ async def expire_old_data(days: int, check: bool = True):
             filter = get_filter(metadata=False, date_ago=date_ago)
 
         # find the oldest record in the collection
-        oldest = await collection.find_one(
-            {}, {"timestamp": 1}, sort=[("timestamp", 1)]
-        )
+        oldest = await collection.find_one({}, {"timestamp": 1}, sort=[("timestamp", 1)])
         LOG.info(f"Oldest record in {col} is {oldest['timestamp']}")
         # which how many days ago was that?
         oldest_date = oldest["timestamp"].replace(tzinfo=utc)
