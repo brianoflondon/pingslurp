@@ -14,7 +14,7 @@ services:
       - ".env"
     # environment:
     #   DB_CONNECTION: "mongodb://mongodb-pp:27017"
-    command: bash -c "poetry run pingslurper --verbose live"
+    command: bash -c "pingslurper --verbose live"
     # command: ["--verbose", "live"]
     restart: unless-stopped
     # dns:

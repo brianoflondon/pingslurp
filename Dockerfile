@@ -1,26 +1,21 @@
 FROM python:3.11
 
-# Install Poetry
-RUN curl -sSL https://install.python-poetry.org | POETRY_HOME=/opt/poetry python && \
-    cd /usr/local/bin && \
-    ln -s /opt/poetry/bin/poetry && \
-    poetry config virtualenvs.create false
-
-# Copy using poetry.lock* in case it doesn't exist yet
-COPY ./pyproject.toml ./poetry.lock* /app/
-
-WORKDIR  /app/
+# Install UV
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # needed for pymssql to install in 3.11
 RUN apt update && apt install -y freetds-dev && rm -rf /var/lib/apt/lists/*
 
-RUN poetry install --only main --no-root --without dev
+WORKDIR /app/
+
+# Copy dependency files (uv.lock* in case it doesn't exist yet)
+COPY ./pyproject.toml ./uv.lock* /app/
+
+# Install dependencies without the project itself (layer caching)
+RUN uv sync --frozen --no-dev --no-install-project
 
 COPY ./src /app/
 
-RUN poetry install --without dev
+RUN uv sync --frozen --no-dev
 
-ENV PATH="/home/pingslurp/app/.venv/bin:${PATH}"
-
-# # Set the entry point
-# ENTRYPOINT ["poetry", "run", "pingslurper"]
+ENV PATH="/app/.venv/bin:${PATH}"
