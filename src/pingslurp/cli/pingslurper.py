@@ -1,9 +1,9 @@
 import asyncio
 import logging
 import sys
+from collections.abc import Coroutine
 from datetime import datetime, timedelta
 from timeit import default_timer as timer
-from typing import Coroutine, List, Optional, Tuple
 
 import typer
 from motor.motor_asyncio import AsyncIOMotorCollection
@@ -16,10 +16,10 @@ from pingslurp.database import (
     all_blocks_it,
     block_at_postion,
     database_update,
+    expire_old_data,
     find_big_gaps,
     get_mongo_db,
     is_empty,
-    expire_old_data,
     setup_mongo_db,
 )
 from pingslurp.hive_calls import (
@@ -41,10 +41,8 @@ async def find_date_gaps(
     block_gap_size: int = None,
     time_span: timedelta = None,
     db: AsyncIOMotorCollection = None,
-) -> Tuple[List[Tuple[int, int]], List[Tuple[datetime, datetime]]]:
-    block_gaps = await find_big_gaps(
-        block_gap_size=block_gap_size, time_span=time_span, db=db
-    )
+) -> tuple[list[tuple[int, int]], list[tuple[datetime, datetime]]]:
+    block_gaps = await find_big_gaps(block_gap_size=block_gap_size, time_span=time_span, db=db)
     last_block = await block_at_postion(position=-1, collection=db)
     current_block = get_current_hive_block_num()
     block_gaps.append((last_block, current_block))
@@ -83,9 +81,9 @@ async def setup_check_database(time_span: timedelta = None):
 
 
 async def history_loop(
-    start_block: Optional[int] = None,
-    time_delta: Optional[timedelta] = None,
-    end_block: Optional[int] = sys.maxsize,
+    start_block: int | None = None,
+    time_delta: timedelta | None = None,
+    end_block: int | None = sys.maxsize,
 ):
     async with asyncio.TaskGroup() as tg:
         history_task = tg.create_task(
@@ -135,16 +133,12 @@ async def catchup_loop():
                 state_options=state_options,
             )
         )
-        catchup_task = tg.create_task(
-            history_loop(start_block=start_block, end_block=end_block)
-        )
+        catchup_task = tg.create_task(history_loop(start_block=start_block, end_block=end_block))
     LOG.info(catchup_task.result())
     LOG.info(live_task.result())
 
 
-async def fillgaps_loop(
-    block_gaps: List[Tuple[int, int]] = None, time_span: timedelta = None
-):
+async def fillgaps_loop(block_gaps: list[tuple[int, int]] = None, time_span: timedelta = None):
     time_span = timedelta(seconds=360) if not time_span else time_span
     if not block_gaps:
         block_gaps, date_gaps = await find_date_gaps(time_span=time_span)
@@ -161,9 +155,7 @@ async def fillgaps_loop(
         for i, gap in enumerate(block_gaps):
             start, end = date_gaps[i]
             message = f"GAP {i:3}"
-            LOG.info(
-                f"{message} |Date gap: {start:%d-%m-%Y} ->  {end:%d-%m-%Y} | {end - start}"
-            )
+            LOG.info(f"{message} |Date gap: {start:%d-%m-%Y} ->  {end:%d-%m-%Y} | {end - start}")
             found = tg.create_task(
                 keep_checking_hive_stream(
                     start_block=gap[0] - 10,
@@ -199,8 +191,7 @@ async def scan_history_loop(start_days: float, bots: int = 20, end_days: float =
     next_end = 0
     while start_block < end_block and next_end < current_block:
         next_end = int(start_block + block_gap + 10)
-        if next_end > current_block:
-            next_end = current_block
+        next_end = min(next_end, current_block)
         block_gaps.append((int(start_block - 50), next_end))
         start_block += block_gap
 
@@ -219,22 +210,20 @@ def run_main_loop(task: Coroutine):
         start_time = timer()
         LOG.info("Starting to scan")
         asyncio.run(task)
-    except* asyncio.CancelledError as ex:
+    except asyncio.CancelledError as ex:
         LOG.warning("asyncio.CancelledError raised")
         LOG.warning(ex)
         raise typer.Exit()
-    except* KeyboardInterrupt:
+    except KeyboardInterrupt:
         LOG.info("Interrupted with ctrc-C")
         raise typer.Exit()
     finally:
-        LOG.info(f"Total time: {timer()-start_time:.2f}s")
+        LOG.info(f"Total time: {timer() - start_time:.2f}s")
 
 
 @app.callback()
 def main(
-    verbose: bool = typer.Option(
-        False, help="Show verbose output including logging every ping"
-    ),
+    verbose: bool = typer.Option(False, help="Show verbose output including logging every ping"),
     just_iris: bool = typer.Option(
         False,
         help="""Just show the IRIs from the pingslurp database.
@@ -274,7 +263,7 @@ def catchup():
 
 @app.command()
 def fillgaps(
-    time_span: Optional[float] = typer.Option(
+    time_span: float | None = typer.Option(
         60, help="Minimum gaps size in mins to consider as a gap (default 60 mins)"
     ),
 ):
@@ -287,7 +276,7 @@ def fillgaps(
 
 @app.command()
 def check(
-    time_span: Optional[float] = typer.Option(
+    time_span: float | None = typer.Option(
         60, help="Minimum gaps size in minutes to consider as a gap (default 60 mins)"
     ),
 ):
@@ -301,13 +290,9 @@ def check(
 
 @app.command()
 def scanrange(
-    start_days: Optional[float] = typer.Option(
-        5, help="Days back to start scanning from"
-    ),
-    end_days: Optional[float] = typer.Option(
-        0, help="Days backward to end scanning on"
-    ),
-    bots: Optional[float] = typer.Option(5, help="Number of scanning bots to run"),
+    start_days: float | None = typer.Option(5, help="Days back to start scanning from"),
+    end_days: float | None = typer.Option(0, help="Days backward to end scanning on"),
+    bots: float | None = typer.Option(5, help="Number of scanning bots to run"),
 ):
     """
     Scans a range of blocks or dates
@@ -317,8 +302,8 @@ def scanrange(
 
 @app.command()
 def scanblocks(
-    start_block: Optional[int] = typer.Option(None, help="Starting block"),
-    end_block: Optional[int] = typer.Option(None, help="Ending block"),
+    start_block: int | None = typer.Option(None, help="Starting block"),
+    end_block: int | None = typer.Option(None, help="Ending block"),
 ):
     """
     Scans a range of blocks
@@ -328,10 +313,8 @@ def scanblocks(
 
 @app.command()
 def scanhistory(
-    start_days: Optional[float] = typer.Option(
-        90, help="Days back from now to start scanning from"
-    ),
-    bots: Optional[float] = typer.Option(5, help="Number of scanning bots to run"),
+    start_days: float | None = typer.Option(90, help="Days back from now to start scanning from"),
+    bots: float | None = typer.Option(5, help="Number of scanning bots to run"),
 ):
     """
     Goes back to <start_days> and starts scanning from that point to the earliest point in
@@ -343,9 +326,9 @@ def scanhistory(
 
 @app.command()
 def databaseupdate(
-    force_update: Optional[bool] = typer.Option(
+    force_update: bool | None = typer.Option(
         False, help="Delete and overwrite the timeseries collections"
-    )
+    ),
 ):
     """
     Goes through the entire database makes sure the meta data timeseries collections are
@@ -362,12 +345,10 @@ def databaseupdate(
 
 @app.command()
 def expireold(
-    days_old: Optional[int] = typer.Option(
+    days_old: int | None = typer.Option(
         180, help="Expire entries older than this many days (default 180 days)"
     ),
-    check: Optional[bool] = typer.Option(
-        True, help="Checks for expired entries but does not delete"
-    ),
+    check: bool | None = typer.Option(True, help="Checks for expired entries but does not delete"),
 ):
     """
     Expire entries that are older than a certain number of days.
