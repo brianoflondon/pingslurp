@@ -1,7 +1,7 @@
 FROM python:3.11
 
 # Install UV
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.13.8 /uv /uvx /bin/
 
 # needed for pymssql to install in 3.11
 RUN apt update && apt install -y freetds-dev && rm -rf /var/lib/apt/lists/*

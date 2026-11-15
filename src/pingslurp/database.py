@@ -227,10 +227,14 @@ def gaps_from_block_bins(
     bins: List[Tuple[int, int]],
     block_gap_size: int,
 ) -> List[Tuple[int, int]]:
-    """Gaps between inclusive block-coverage bins, including a leading gap from block 0.
+    """Return gaps larger than ``block_gap_size`` between sorted coverage bins.
 
-    Bins are sorted by start. Each bin is at most ``block_gap_size`` blocks wide, so a
-    larger gap cannot sit inside one bin.
+    Each bin is an inclusive ``(lo, hi)`` of blocks that are present. A returned
+    gap is ``(last_present, next_present - 1)``: it starts on the last block that
+    exists and ends on the block before the next one. The scan starts at block 0,
+    so a leading gap is included when the first stored block is far enough ahead.
+    A bin is at most ``block_gap_size`` blocks wide, so a larger gap cannot sit
+    inside one bin.
     """
     big_gaps: List[Tuple[int, int]] = []
     last_block = 0
