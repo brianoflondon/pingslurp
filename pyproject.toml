@@ -14,7 +14,7 @@ dependencies = [
     "asgiref>=3.5.2",
     "single-source>=0.3.0",
     "motor>=3.1.1",
-    "beem @ git+https://gitlab.syncad.com/hive/beem.git",
+    "hive-nectar>=1.0.7",
     "httpx>=0.23.0",
     "pymssql>=2.2.5",
     "python-dotenv>=0.21.0",
@@ -40,9 +40,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pingslurp"]
-
-[tool.hatch.metadata]
-allow-direct-references = true
 
 [tool.pytest.ini_options]
 log_cli = true
