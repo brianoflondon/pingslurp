@@ -223,6 +223,56 @@ async def update_meta_ts(db_client: AsyncIOMotorClient, pp: Podping) -> PodpingD
     return pdr
 
 
+def gaps_from_block_bins(
+    bins: List[Tuple[int, int]],
+    block_gap_size: int,
+) -> List[Tuple[int, int]]:
+    """Return gaps larger than ``block_gap_size`` between sorted coverage bins.
+
+    Each bin is an inclusive ``(lo, hi)`` of blocks that are present. A returned
+    gap is ``(last_present, next_present - 1)``: it starts on the last block that
+    exists and ends on the block before the next one. The scan starts at block 0,
+    so a leading gap is included when the first stored block is far enough ahead.
+    A bin is at most ``block_gap_size`` blocks wide, so a larger gap cannot sit
+    inside one bin.
+    """
+    big_gaps: List[Tuple[int, int]] = []
+    last_block = 0
+    for lo, hi in bins:
+        if lo - last_block > block_gap_size:
+            big_gaps.append((last_block, lo - 1))
+        last_block = max(last_block, hi)
+    return big_gaps
+
+
+async def _is_timeseries(collection: AsyncIOMotorCollection) -> bool:
+    cursor = await collection.database.list_collections(filter={"name": collection.name})
+    async for spec in cursor:
+        return "timeseries" in spec.get("options", {})
+    return False
+
+
+async def _has_block_num_index(collection: AsyncIOMotorCollection) -> bool:
+    async for idx in collection.list_indexes():
+        if list(idx["key"].items()) == [("block_num", 1)]:
+            return True
+    return False
+
+
+def _sorted_block_num_cursor(collection: AsyncIOMotorCollection, sort_order: int, hint: bool):
+    """Index-ordered block_num scan. Disk spill is disabled.
+
+    MongoDB 8 refuses a spillable sort when the node has under 500MB free
+    (OutOfDiskSpace, code 14031), even if ``allowDiskUse`` is only a fallback.
+    """
+    cursor = collection.find({}, {"block_num": 1}, allow_disk_use=False).sort(
+        [("block_num", sort_order)]
+    )
+    if hint:
+        cursor = cursor.hint([("block_num", ASCENDING)])
+    return cursor
+
+
 async def block_at_postion(position=1, collection: AsyncIOMotorCollection = None) -> int:
     """
     Returns the block at the given position in the database
@@ -230,30 +280,65 @@ async def block_at_postion(position=1, collection: AsyncIOMotorCollection = None
     """
     if collection is None:
         collection = get_mongo_db()
-    sort_order = 1
+    sort_order = ASCENDING
     if position < 0:
-        sort_order = -1
+        sort_order = DESCENDING
         position = abs(position) - 1
-    cursor = collection.find({}, {"block_num": 1}, allow_disk_use=True).sort(
-        [("block_num", sort_order)]
+
+    if await _is_timeseries(collection):
+        return await _timeseries_block_at_position(collection, position, sort_order)
+
+    cursor = _sorted_block_num_cursor(
+        collection,
+        sort_order,
+        hint=await _has_block_num_index(collection),
     )
-    i = 0
-    async for doc in cursor:
-        if i == position:
-            return int(doc["block_num"])
-        i += 1
-    return 0
+    docs = await cursor.skip(position).limit(1).to_list(1)
+    if not docs:
+        return 0
+    return int(docs[0]["block_num"])
+
+
+async def _timeseries_block_at_position(
+    collection: AsyncIOMotorCollection,
+    position: int,
+    sort_order: int,
+) -> int:
+    """First and last block use bucket min/max. Other positions are a top-k sort.
+
+    Both stay in memory. A full sort of every measurement would try to spill to disk.
+    """
+    if position == 0:
+        accumulator = "$min" if sort_order == ASCENDING else "$max"
+        cursor = collection.aggregate(
+            [{"$group": {"_id": None, "block_num": {accumulator: "$block_num"}}}],
+            allowDiskUse=False,
+        )
+        docs = await cursor.to_list(1)
+        if not docs or docs[0].get("block_num") is None:
+            return 0
+        return int(docs[0]["block_num"])
+
+    cursor = collection.aggregate(
+        [
+            {"$sort": {"block_num": sort_order}},
+            {"$limit": position + 1},
+            {"$project": {"block_num": 1}},
+        ],
+        allowDiskUse=False,
+    )
+    docs = await cursor.to_list(length=position + 1)
+    if len(docs) <= position:
+        return 0
+    return int(docs[position]["block_num"])
 
 
 async def all_blocks(collection: AsyncIOMotorCollection = None) -> List:
     """Return a set of all block_num currently in the database from lowest to
     highest"""
-    if collection is None:
-        collection = get_mongo_db()
-    cursor = collection.find({}, {"block_num": 1}, allow_disk_use=True).sort([("block_num", 1)])
-    ans = list()
-    async for doc in cursor:
-        ans.append(doc["block_num"])
+    ans = []
+    async for block_num in all_blocks_it(collection=collection):
+        ans.append(block_num)
     return ans
 
 
@@ -264,7 +349,11 @@ async def all_blocks_it(
     highest"""
     if collection is None:
         collection = get_mongo_db()
-    cursor = collection.find({}, {"block_num": 1}, allow_disk_use=True).sort([("block_num", 1)])
+    cursor = _sorted_block_num_cursor(
+        collection,
+        ASCENDING,
+        hint=await _has_block_num_index(collection),
+    )
     async for doc in cursor:
         yield doc["block_num"]
 
@@ -290,16 +379,56 @@ async def find_big_gaps(
 
     if not block_gap_size:
         block_gap_size = int(time_span.seconds / 3)
+    if db is None:
+        db = get_mongo_db()
+
+    # Time series measurements are not ordered by block_num. Sorting all of them
+    # spills to disk, which fails when the node has under 500MB free.
+    if await _is_timeseries(db):
+        return await _find_big_gaps_timeseries(db, block_gap_size)
+
     big_gaps = []
-    gap = (0, 0)
     last_block = 0
     async for range_block in range_extract(all_blocks_it(collection=db)):
         if range_block[0] - last_block > block_gap_size:
             LOG.debug(f"Big gap at: {range_block}")
-            gap = (last_block, range_block[0] - 1)
-            big_gaps.append(gap)
+            big_gaps.append((last_block, range_block[0] - 1))
         last_block = max(range_block)
     return big_gaps
+
+
+async def _find_big_gaps_timeseries(
+    collection: AsyncIOMotorCollection,
+    block_gap_size: int,
+) -> List[Tuple[int, int]]:
+    """Find gaps from block_num bins that fit in memory.
+
+    Each bin is ``block_gap_size`` blocks wide, so a gap larger than that has to
+    fall between bins. ``allowDiskUse`` stays off so mongod does not demand 500MB
+    of free scratch space.
+    """
+    bin_width = block_gap_size if block_gap_size > 0 else 1
+    LOG.info(f"Scanning {collection.name} in bins of {bin_width} blocks")
+    pipeline = [
+        {
+            "$group": {
+                "_id": {
+                    "$subtract": [
+                        "$block_num",
+                        {"$mod": ["$block_num", bin_width]},
+                    ]
+                },
+                "lo": {"$min": "$block_num"},
+                "hi": {"$max": "$block_num"},
+            }
+        },
+        {"$sort": {"_id": 1}},
+    ]
+    bins: List[Tuple[int, int]] = []
+    cursor = collection.aggregate(pipeline, allowDiskUse=False)
+    async for row in cursor:
+        bins.append((int(row["lo"]), int(row["hi"])))
+    return gaps_from_block_bins(bins, block_gap_size)
 
 
 async def range_extract(iterable: AsyncIterator) -> AsyncIterator:

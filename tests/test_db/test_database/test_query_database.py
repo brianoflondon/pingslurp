@@ -10,11 +10,22 @@ from pingslurp.database import (
     all_blocks_it,
     block_at_postion,
     find_big_gaps,
+    gaps_from_block_bins,
     get_mongo_db,
     range_extract,
 )
-from pingslurp.hive_calls import get_block_datetime, get_hive_blockchain
+from pingslurp.hive_calls import get_block_datetime
 from pingslurp.podping_schemas import Podping
+
+
+def test_gaps_from_block_bins():
+    bins = [(100, 150), (160, 200), (2500, 2600)]
+    assert gaps_from_block_bins(bins, 100) == [(200, 2499)]
+    assert gaps_from_block_bins(bins, 50) == [(0, 99), (200, 2499)]
+    assert gaps_from_block_bins([], 100) == []
+    overlapping = [(100, 300), (200, 400), (1000, 1100)]
+    assert gaps_from_block_bins(overlapping, 50) == [(0, 99), (400, 999)]
+
 
 @pytest.mark.skip(reason="This test is not needed for the CI")
 @pytest.mark.asyncio
