@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import weakref
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -20,16 +21,20 @@ LOG = logging.getLogger(__name__)
 # be shared across loops. The pool stays at the driver default of 100
 # connections per server: catch-up submits up to 1000 inserts at once, and the
 # extra work waits for a free connection instead of opening a socket per task.
-_async_clients: dict[int, AsyncMongoClient] = {}
+# The loop object is a weak key. id(loop) can be reused after the loop is
+# destroyed, and a strong key would keep dead loops alive.
+_async_clients: weakref.WeakKeyDictionary[
+    asyncio.AbstractEventLoop, AsyncMongoClient
+] = weakref.WeakKeyDictionary()
 
 
 def get_async_client() -> AsyncMongoClient:
     """Return the AsyncMongoClient bound to the running event loop."""
-    loop_id = id(asyncio.get_running_loop())
-    client = _async_clients.get(loop_id)
+    loop = asyncio.get_running_loop()
+    client = _async_clients.get(loop)
     if client is None:
         client = AsyncMongoClient(Config.DB_CONNECTION)
-        _async_clients[loop_id] = client
+        _async_clients[loop] = client
     return client
 
 
