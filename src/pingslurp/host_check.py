@@ -1,11 +1,9 @@
-import asyncio
-from motor.motor_asyncio import AsyncIOMotorClient
-from pingslurp.config import Config
-
-from urllib.parse import urlparse
-import socket
-
 import logging
+import socket
+from urllib.parse import urlparse
+
+from pingslurp.config import Config
+from pingslurp.database import get_async_client
 
 LOG = logging.getLogger(__name__)
 
@@ -48,8 +46,7 @@ def check_host_connection(host: str, port: int, timeout=2) -> bool:
 
 
 async def check_hosts() -> int:
-    # Create the client using the connection string
-    client = AsyncIOMotorClient(Config.DB_CONNECTION)
+    client = get_async_client()
     await client.admin.command("ping")
     # Get the list of nodes from the client
     nodes = list(client.nodes)

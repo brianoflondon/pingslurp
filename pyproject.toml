@@ -1,6 +1,6 @@
 [project]
 name = "pingslurp"
-version = "1.11.0"
+version = "1.12.0rc1"
 description = "Keeping up with the Podpings"
 authors = [
     {name = "Brian of London", email = "brian@podping.org"}
@@ -13,7 +13,7 @@ dependencies = [
     "pydantic>=1.10.2,<2.0.0",
     "asgiref>=3.5.2",
     "single-source>=0.3.0",
-    "motor>=3.1.1",
+    "pymongo>=4.20",
     "hive-nectar>=1.0.7",
     "httpx>=0.23.0",
     "pymssql>=2.2.5",
