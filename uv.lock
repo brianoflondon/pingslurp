@@ -967,7 +967,7 @@ wheels = [
 
 [[package]]
 name = "pingslurp"
-version = "1.12.0rc1"
+version = "1.12.0"
 source = { editable = "." }
 dependencies = [
     { name = "asgiref" },
