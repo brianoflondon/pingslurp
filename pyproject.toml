@@ -1,6 +1,6 @@
 [project]
 name = "pingslurp"
-version = "1.11.0"
+version = "1.12.0rc1"
 description = "Keeping up with the Podpings"
 authors = [
     {name = "Brian of London", email = "brian@podping.org"}
