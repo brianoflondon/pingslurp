@@ -3,18 +3,18 @@ import json
 import logging
 import socket
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from timeit import default_timer as timer
 from urllib.parse import urlparse
 
 import httpx
+from httpx import URL
 from nectar import Hive
 from nectar.block import BlockHeader
 from nectar.blockchain import Blockchain
 from nectarapi.exceptions import NumRetriesReached
-from httpx import URL
-from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import ValidationError
+from pymongo.asynchronous.database import AsyncDatabase
 from tqdm.asyncio import tqdm, tqdm_asyncio
 
 from pingslurp.async_wrapper import sync_to_async_iterable
@@ -173,7 +173,7 @@ async def get_hive_blockchain() -> tuple[Hive, Blockchain]:
             else:
                 raise HiveConnectionError()
 
-        except (NumRetriesReached, asyncio.TimeoutError, HiveConnectionError) as ex:
+        except (TimeoutError, NumRetriesReached, HiveConnectionError) as ex:
             LOG.error(f"{ex} {ex.__class__}")
             message = (
                 f"Unable to connect to Hive API | Internet connection down? | Failures: {errors}"
@@ -247,9 +247,7 @@ def output_status(
         prev_block_num = block_num
         rpc_domain = urlparse(hive.data.get("last_node"))
         hive_string = f"| {rpc_domain.hostname}" if hive else ""
-        time_delta = seconds_only(
-            datetime.now(tz=timezone.utc) - hive_post["timestamp"].astimezone(timezone.utc)
-        )
+        time_delta = seconds_only(datetime.now(tz=UTC) - hive_post["timestamp"].astimezone(UTC))
         # Change message if we are catching up
         if time_delta.total_seconds() > 5 and message.startswith("LIVE"):
             message = "---> | "
@@ -419,7 +417,7 @@ async def keep_checking_hive_stream(
 
 
 async def insert_and_report_podping(
-    client: AsyncIOMotorClient,
+    client: AsyncDatabase,
     podping: Podping,
     message: str,
     state_options: StateOptions,

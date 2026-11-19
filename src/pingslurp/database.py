@@ -1,11 +1,12 @@
 import asyncio
 import logging
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import AsyncIterator, List, Tuple
 
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
-from pymongo import ASCENDING, DESCENDING, MongoClient
+from pymongo import ASCENDING, DESCENDING, AsyncMongoClient, MongoClient
+from pymongo.asynchronous.collection import AsyncCollection
+from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.errors import DuplicateKeyError, OperationFailure
 from pytz import utc
 from tqdm.asyncio import tqdm
@@ -15,20 +16,41 @@ from pingslurp.podping_schemas import Podping
 
 LOG = logging.getLogger(__name__)
 
+# One async client per event loop. AsyncMongoClient owns the pool and cannot
+# be shared across loops. The pool stays at the driver default of 100
+# connections per server: catch-up submits up to 1000 inserts at once, and the
+# extra work waits for a free connection instead of opening a socket per task.
+_async_clients: dict[int, AsyncMongoClient] = {}
 
-def get_mongo_db(collection: str = "all_podpings") -> AsyncIOMotorCollection:
-    """Returns the MongoDB"""
-    return AsyncIOMotorClient(Config.DB_CONNECTION)[Config.ROOT_DB_NAME][collection]
+
+def get_async_client() -> AsyncMongoClient:
+    """Return the AsyncMongoClient bound to the running event loop."""
+    loop_id = id(asyncio.get_running_loop())
+    client = _async_clients.get(loop_id)
+    if client is None:
+        client = AsyncMongoClient(Config.DB_CONNECTION)
+        _async_clients[loop_id] = client
+    return client
 
 
-def get_mongo_client() -> AsyncIOMotorClient:
-    return AsyncIOMotorClient(Config.DB_CONNECTION)[Config.ROOT_DB_NAME]
+def get_mongo_db(collection: str = "all_podpings") -> AsyncCollection:
+    """Returns the MongoDB collection."""
+    return get_async_client()[Config.ROOT_DB_NAME][collection]
+
+
+def get_mongo_client() -> AsyncDatabase:
+    """Return the application database.
+
+    The name is historical. Callers index the result to reach a collection.
+    """
+    return get_async_client()[Config.ROOT_DB_NAME]
 
 
 def setup_mongo_db() -> None:
     """Check if the DB exists and set it up if needed."""
+    client = MongoClient(Config.DB_CONNECTION)
     try:
-        db = MongoClient(Config.DB_CONNECTION)[Config.ROOT_DB_NAME]
+        db = client[Config.ROOT_DB_NAME]
         collection = db[Config.COLLECTION_NAME]
 
         # === Regular Collection Setup ===
@@ -120,6 +142,8 @@ def setup_mongo_db() -> None:
     except Exception as e:
         LOG.error(f"Critical error during MongoDB setup: {e}", exc_info=True)
         raise  # or handle gracefully depending on your startup policy
+    finally:
+        client.close()
 
 
 @dataclass
@@ -146,7 +170,7 @@ class PodpingDatabaseResult:
         )
 
 
-async def insert_podping(db_client: AsyncIOMotorClient, pp: Podping) -> PodpingDatabaseResult:
+async def insert_podping(db_client: AsyncDatabase, pp: Podping) -> PodpingDatabaseResult:
     """Put a podping in the database, returns True if new podping was inserted
     False if duplicate."""
     data = pp.db_format()
@@ -167,9 +191,9 @@ async def insert_podping(db_client: AsyncIOMotorClient, pp: Podping) -> PodpingD
             pdr.meta = True
             data_hosts_ts = pp.db_format_hosts_ts()
             if data_hosts_ts:
-                hosts_ts_ins = await db_client[Config.COLLECTION_NAME_HOSTS].insert_many(
-                    [host for host in data_hosts_ts]
-                )
+                hosts_ts_ins = await db_client[Config.COLLECTION_NAME_HOSTS].insert_many([
+                    host for host in data_hosts_ts
+                ])
                 pdr.hosts_ts = True
             new_value = {"$set": {"stored_meta": True, "stored_hosts": True}}
             podpings_update = await db_client[Config.COLLECTION_NAME].update_one(
@@ -187,7 +211,7 @@ async def insert_podping(db_client: AsyncIOMotorClient, pp: Podping) -> PodpingD
     return pdr
 
 
-async def update_meta_ts(db_client: AsyncIOMotorClient, pp: Podping) -> PodpingDatabaseResult:
+async def update_meta_ts(db_client: AsyncDatabase, pp: Podping) -> PodpingDatabaseResult:
     """Run the update to meta timeseries if we are adding to existing database"""
     doc = await db_client[Config.COLLECTION_NAME].find_one(
         {"trx_id": pp.trx_id, "op_id": pp.op_id}, {"stored_meta": 1, "stored_hosts": 1}
@@ -210,9 +234,9 @@ async def update_meta_ts(db_client: AsyncIOMotorClient, pp: Podping) -> PodpingD
     if doc and not doc.get("stored_hosts"):
         data_hosts_ts = pp.db_format_hosts_ts()
         if data_hosts_ts:
-            ans2 = await db_client[Config.COLLECTION_NAME_HOSTS].insert_many(
-                [host for host in data_hosts_ts]
-            )
+            ans2 = await db_client[Config.COLLECTION_NAME_HOSTS].insert_many([
+                host for host in data_hosts_ts
+            ])
             new_value = {"$set": {"stored_hosts": True}}
             ans3 = await db_client[Config.COLLECTION_NAME].update_one(
                 {"trx_id": pp.trx_id, "op_id": pp.op_id}, new_value
@@ -224,9 +248,9 @@ async def update_meta_ts(db_client: AsyncIOMotorClient, pp: Podping) -> PodpingD
 
 
 def gaps_from_block_bins(
-    bins: List[Tuple[int, int]],
+    bins: list[tuple[int, int]],
     block_gap_size: int,
-) -> List[Tuple[int, int]]:
+) -> list[tuple[int, int]]:
     """Return gaps larger than ``block_gap_size`` between sorted coverage bins.
 
     Each bin is an inclusive ``(lo, hi)`` of blocks that are present. A returned
@@ -236,7 +260,7 @@ def gaps_from_block_bins(
     A bin is at most ``block_gap_size`` blocks wide, so a larger gap cannot sit
     inside one bin.
     """
-    big_gaps: List[Tuple[int, int]] = []
+    big_gaps: list[tuple[int, int]] = []
     last_block = 0
     for lo, hi in bins:
         if lo - last_block > block_gap_size:
@@ -245,35 +269,35 @@ def gaps_from_block_bins(
     return big_gaps
 
 
-async def _is_timeseries(collection: AsyncIOMotorCollection) -> bool:
+async def _is_timeseries(collection: AsyncCollection) -> bool:
     cursor = await collection.database.list_collections(filter={"name": collection.name})
     async for spec in cursor:
         return "timeseries" in spec.get("options", {})
     return False
 
 
-async def _has_block_num_index(collection: AsyncIOMotorCollection) -> bool:
-    async for idx in collection.list_indexes():
+async def _has_block_num_index(collection: AsyncCollection) -> bool:
+    async for idx in await collection.list_indexes():
         if list(idx["key"].items()) == [("block_num", 1)]:
             return True
     return False
 
 
-def _sorted_block_num_cursor(collection: AsyncIOMotorCollection, sort_order: int, hint: bool):
+def _sorted_block_num_cursor(collection: AsyncCollection, sort_order: int, hint: bool):
     """Index-ordered block_num scan. Disk spill is disabled.
 
     MongoDB 8 refuses a spillable sort when the node has under 500MB free
     (OutOfDiskSpace, code 14031), even if ``allowDiskUse`` is only a fallback.
     """
-    cursor = collection.find({}, {"block_num": 1}, allow_disk_use=False).sort(
-        [("block_num", sort_order)]
-    )
+    cursor = collection.find({}, {"block_num": 1}, allow_disk_use=False).sort([
+        ("block_num", sort_order)
+    ])
     if hint:
         cursor = cursor.hint([("block_num", ASCENDING)])
     return cursor
 
 
-async def block_at_postion(position=1, collection: AsyncIOMotorCollection = None) -> int:
+async def block_at_postion(position=1, collection: AsyncCollection = None) -> int:
     """
     Returns the block at the given position in the database
     0 is the first block, -1 is the last block.
@@ -300,7 +324,7 @@ async def block_at_postion(position=1, collection: AsyncIOMotorCollection = None
 
 
 async def _timeseries_block_at_position(
-    collection: AsyncIOMotorCollection,
+    collection: AsyncCollection,
     position: int,
     sort_order: int,
 ) -> int:
@@ -310,7 +334,7 @@ async def _timeseries_block_at_position(
     """
     if position == 0:
         accumulator = "$min" if sort_order == ASCENDING else "$max"
-        cursor = collection.aggregate(
+        cursor = await collection.aggregate(
             [{"$group": {"_id": None, "block_num": {accumulator: "$block_num"}}}],
             allowDiskUse=False,
         )
@@ -319,7 +343,7 @@ async def _timeseries_block_at_position(
             return 0
         return int(docs[0]["block_num"])
 
-    cursor = collection.aggregate(
+    cursor = await collection.aggregate(
         [
             {"$sort": {"block_num": sort_order}},
             {"$limit": position + 1},
@@ -333,7 +357,7 @@ async def _timeseries_block_at_position(
     return int(docs[position]["block_num"])
 
 
-async def all_blocks(collection: AsyncIOMotorCollection = None) -> List:
+async def all_blocks(collection: AsyncCollection = None) -> list:
     """Return a set of all block_num currently in the database from lowest to
     highest"""
     ans = []
@@ -343,7 +367,7 @@ async def all_blocks(collection: AsyncIOMotorCollection = None) -> List:
 
 
 async def all_blocks_it(
-    collection: AsyncIOMotorCollection = None,
+    collection: AsyncCollection = None,
 ) -> AsyncIterator[int]:
     """Returns iterator of set of all block_num currently in the database from lowest to
     highest"""
@@ -370,8 +394,8 @@ async def is_empty(iterable: AsyncIterator):
 async def find_big_gaps(
     block_gap_size: int = None,
     time_span: timedelta = None,
-    db: AsyncIOMotorCollection = None,
-) -> List[Tuple[int, int]]:
+    db: AsyncCollection = None,
+) -> list[tuple[int, int]]:
     """Find big gaps in block list greater than block_gap_size blocks or
     time_span seconds."""
     if not block_gap_size and not time_span:
@@ -398,9 +422,9 @@ async def find_big_gaps(
 
 
 async def _find_big_gaps_timeseries(
-    collection: AsyncIOMotorCollection,
+    collection: AsyncCollection,
     block_gap_size: int,
-) -> List[Tuple[int, int]]:
+) -> list[tuple[int, int]]:
     """Find gaps from block_num bins that fit in memory.
 
     Each bin is ``block_gap_size`` blocks wide, so a gap larger than that has to
@@ -424,8 +448,8 @@ async def _find_big_gaps_timeseries(
         },
         {"$sort": {"_id": 1}},
     ]
-    bins: List[Tuple[int, int]] = []
-    cursor = collection.aggregate(pipeline, allowDiskUse=False)
+    bins: list[tuple[int, int]] = []
+    cursor = await collection.aggregate(pipeline, allowDiskUse=False)
     async for row in cursor:
         bins.append((int(row["lo"]), int(row["hi"])))
     return gaps_from_block_bins(bins, block_gap_size)

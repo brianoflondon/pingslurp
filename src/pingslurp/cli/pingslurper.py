@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from timeit import default_timer as timer
 
 import typer
-from motor.motor_asyncio import AsyncIOMotorCollection
+from pymongo.asynchronous.collection import AsyncCollection
 from rich import print
 from tqdm.contrib.logging import logging_redirect_tqdm
 
@@ -40,7 +40,7 @@ state_options = StateOptions()
 async def find_date_gaps(
     block_gap_size: int = None,
     time_span: timedelta = None,
-    db: AsyncIOMotorCollection = None,
+    db: AsyncCollection = None,
 ) -> tuple[list[tuple[int, int]], list[tuple[datetime, datetime]]]:
     block_gaps = await find_big_gaps(block_gap_size=block_gap_size, time_span=time_span, db=db)
     last_block = await block_at_postion(position=-1, collection=db)
@@ -61,7 +61,7 @@ async def setup_check_database(time_span: timedelta = None):
     await check_hosts()
     try:
         db = get_mongo_db()
-        hosts = db.database.client.host
+        hosts = db.database.client.nodes
         LOG.info(f"Using database at {hosts}")
     except Exception as ex:
         LOG.warning(f"Could not connect to database: {ex}")
